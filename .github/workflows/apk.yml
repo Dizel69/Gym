@@ -1,9 +1,17 @@
 # Push to main or two-week-cycle: tests first, then a signed APK on the release page.
-# The phone installs that file. Updates install over it only if every build uses the
-# same keystore, so the key lives in repository secrets, not in git:
+# A push to main also rebuilds the site on the VPS over SSH. That job only runs
+# `docker compose up -d --build` in ~/openGym. It does not touch Caddy or any other
+# compose project, and it leaves .env and ./data alone.
+#
+# APK signing secrets (create the keystore on your own computer, not on the VPS):
 #   ANDROID_KEYSTORE_B64       base64 of the .jks file
-#   ANDROID_KEYSTORE_PASSWORD  keystore and key password
+#   ANDROID_KEYSTORE_PASSWORD  keystore and key password (the same one for both)
 #   ANDROID_KEY_ALIAS          alias inside the keystore
+#
+# Deploy secrets:
+#   SSH_HOST                   server address
+#   SSH_USER                   the user you already use to log in
+#   SSH_PRIVATE_KEY            private half of a key whose public half is in that user's authorized_keys
 name: Test and APK
 
 on:
@@ -93,3 +101,39 @@ jobs:
             --title "APK ${GITHUB_RUN_NUMBER}" \
             --notes "Signed build from ${GITHUB_SHA}. Install gym.apk on the phone. The next build installs over this one only while the same keystore is used." \
             --latest
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rebuild the site on the server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -eu
+          if [ -z "${SSH_PRIVATE_KEY:-}" ] || [ -z "${SSH_HOST:-}" ] || [ -z "${SSH_USER:-}" ]; then
+            echo "::error::Add repository secrets SSH_HOST, SSH_USER and SSH_PRIVATE_KEY."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/gym_deploy
+          chmod 600 ~/.ssh/gym_deploy
+          ssh -i ~/.ssh/gym_deploy -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SSH_HOST}" bash -s << 'EOF'
+          set -eu
+          dir="$HOME/openGym"
+          if [ ! -d "$dir/.git" ]; then
+            git clone --branch main https://github.com/Dizel69/Gym.git "$dir"
+          fi
+          cd "$dir"
+          if [ ! -f .env ]; then
+            echo "Нет .env в $dir. Файл с RP_ID и ORIGIN должен уже лежать на сервере."
+            exit 1
+          fi
+          git remote set-url origin https://github.com/Dizel69/Gym.git
+          git fetch origin main
+          git checkout -f -B main origin/main
+          docker compose up -d --build
+          EOF
