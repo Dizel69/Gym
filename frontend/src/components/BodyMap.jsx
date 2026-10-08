@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { MUSCLES, INERT, MUSCLE_NAME, levelsOf } from '../lib/muscles.js'
 import { t } from '../lib/i18n.js'
 
@@ -27,13 +27,20 @@ function useBodyPaths() {
 }
 
 function View({ view, levels, onMuscle, selected }) {
+  const uid = useId().replace(/:/g, '')
   const activate = (event, slug) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     if (event.key === ' ') event.preventDefault()
     onMuscle(slug)
   }
+  const clips = []
+  MUSCLES.forEach(slug => (view.c?.[slug] || []).forEach((box, i) => {
+    const [x, y, w, h] = box
+    clips.push(<clipPath id={`${uid}-${slug}-${i}`} key={slug + i}><rect x={x} y={y} width={w} height={h} /></clipPath>)
+  }))
   return (
     <svg className="bm-v" viewBox={view.vb} role={onMuscle ? 'group' : 'img'}>
+      {clips.length ? <defs>{clips}</defs> : null}
       {INERT.map(slug => (view.p[slug] || []).map((d, i) =>
         <path key={slug + i} className="bm-sil" d={d} />))}
       {MUSCLES.map(slug => (view.p[slug] || []).map((d, i) =>
@@ -41,6 +48,7 @@ function View({ view, levels, onMuscle, selected }) {
           key={slug + i}
           className={'bm-m l' + (levels[slug] || 0) + (selected === slug ? ' sel' : '')}
           d={d}
+          clipPath={view.c?.[slug]?.[i] ? `url(#${uid}-${slug}-${i})` : undefined}
           onClick={onMuscle ? () => onMuscle(slug) : undefined}
           onKeyDown={onMuscle ? event => activate(event, slug) : undefined}
           role={onMuscle ? 'button' : undefined}

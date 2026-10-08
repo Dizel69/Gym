@@ -23,6 +23,27 @@ import { Button, Segmented, SelectRow } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { isWarmupRow } from '../lib/workout-model.js'
 
+function WeekBody({ S }) {
+  const [sel, setSel] = useState(null)
+  const load = useMemo(() => loadOfWorkouts(muscleBalanceWindow(S.workouts, 7, Date.now(), todayISO(), weekStartOf(S))), [S])
+  const { worked } = rankOf(load)
+  const max = worked.length ? load[worked[0]] : 0
+  const weekLabel = t('Week')
+  return <div className="card">
+    <h2>{t('Week on the body')} <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>· {weekLabel}</span></h2>
+    <div className="muted small" style={{ marginBottom: 8 }}>{t('Shaded from the workouts you logged this week.')}</div>
+    {worked.length ? <>
+      <BodyMap className="tappable" load={load} body={S.body} selected={sel} onMuscle={m => setSel(s => (s === m ? null : m))} />
+      <BodyMapLegend />
+      {(sel ? [sel] : worked.slice(0, 4)).map(m => <div key={m} className="mrow">
+        <span className="nm">{t(MUSCLE_NAME[m])}</span>
+        <span className="bar"><i style={{ width: Math.round((load[m] || 0) / max * 100) + '%' }} /></span>
+        <span className="v">{t('{0} sets', fmtNum(Math.round((load[m] || 0) * 10) / 10))}</span>
+      </div>)}
+    </> : <div className="muted small">{t('No workouts logged this week.')}</div>}
+  </div>
+}
+
 // Which muscles the training in a window actually hit — and, the point of the card,
 // which ones it keeps missing. Shading is relative within the window (lib/muscles.js).
 function latestMuscleTraining(workouts) {
@@ -444,6 +465,8 @@ export default function Stats() {
       <div className="tile"><div className="l"><Icon name="scale" />{t('Weight 30d')}</div><div className="v" style={{ fontSize: 22, color: bwDelta30 === null ? 'inherit' : bwDeltaColor(bwDelta30, (lastBW(S) || {}).w || 0) }}>{bwDelta30 === null ? '—' : (bwDelta30 > 0 ? '+' : '') + fmtNum(bwDelta30) + ' ' + S.unit}</div></div>
 
     </div>
+
+    <WeekBody S={S} />
 
     <div className="card">
       <h2>{t('Activity — last 12 months')} <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>· {t('by time trained')}</span></h2>

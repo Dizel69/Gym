@@ -1,0 +1,95 @@
+# Push to main or two-week-cycle: tests first, then a signed APK on the release page.
+# The phone installs that file. Updates install over it only if every build uses the
+# same keystore, so the key lives in repository secrets, not in git:
+#   ANDROID_KEYSTORE_B64       base64 of the .jks file
+#   ANDROID_KEYSTORE_PASSWORD  keystore and key password
+#   ANDROID_KEY_ALIAS          alias inside the keystore
+name: Test and APK
+
+on:
+  push:
+    branches: [main, two-week-cycle]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+
+  apk:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Build the mobile bundle
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build:mobile
+      - name: Assemble and sign the APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -eu
+          if [ -z "${ANDROID_KEYSTORE_B64:-}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ] || [ -z "${ANDROID_KEY_ALIAS:-}" ]; then
+            echo "::error::Add repository secrets ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS. An unsigned APK will not install, and a new key every run will not update the app already on the phone."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          cd frontend/android
+          VC=$((1000 + ${GITHUB_RUN_NUMBER:-1}))
+          ./gradlew --no-daemon assembleRelease -PversionCodeOverride="$VC"
+          UNSIGNED=app/build/outputs/apk/release/app-release-unsigned.apk
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.jks" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --out "$GITHUB_WORKSPACE/gym.apk" \
+            "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --print-certs "$GITHUB_WORKSPACE/gym.apk"
+          sha256sum "$GITHUB_WORKSPACE/gym.apk" | tee "$GITHUB_WORKSPACE/gym.apk.sha256"
+          rm -f "$RUNNER_TEMP/release.jks"
+      - name: Publish the APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release create "apk-${GITHUB_RUN_NUMBER}" gym.apk gym.apk.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "APK ${GITHUB_RUN_NUMBER}" \
+            --notes "Signed build from ${GITHUB_SHA}. Install gym.apk on the phone. The next build installs over this one only while the same keystore is used." \
+            --latest

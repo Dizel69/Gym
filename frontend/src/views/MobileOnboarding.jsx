@@ -12,27 +12,31 @@ import { askAddDeviceData } from '../sheets.jsx'
 export function ConnectSheet({ close }) {
   const { connectToServer } = useStore()
   const [url, setUrl] = useState('')
-  const [code, setCode] = useState('')
+  const [login, setLogin] = useState('')
+  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const ref = useRef(null)
   useEffect(() => { setTimeout(() => ref.current?.focus(), 250) }, [])
   const go = async () => {
-    if (!url.trim() || !code.trim()) { useUI.getState().toast(t('Enter your server address and the code')); return }
+    if (!url.trim() || !login.trim() || !password) { useUI.getState().toast(t('Enter the server, login and password')); return }
     setBusy(true)
-    try { await connectToServer(url.trim(), code.trim(), askAddDeviceData); close(); useUI.getState().toast(t('Connected')) }
+    try { await connectToServer(url.trim(), login.trim(), password, askAddDeviceData); close(); useUI.getState().toast(t('Connected')) }
     catch (e) { useUI.getState().toast(e.message || t('Could not connect')) }
     finally { setBusy(false) }
   }
   return <>
     <h3>{t('Connect to my server')}</h3>
     <div className="muted small" style={{ marginBottom: 14 }}>
-      {t('Open Settings → “Pair the mobile app” on the openGym site you’re already signed into, then enter its address and the code shown there.')}
+      {t('Enter the server, then the login and password the admin gave you.')}
     </div>
     <input ref={ref} className="input" placeholder={t('Server address (e.g. gym.example.com)')} value={url}
       onChange={e => setUrl(e.target.value)} autoCapitalize="none" autoCorrect="off" inputMode="url" />
     <div style={{ height: 10 }} />
-    <input className="input" placeholder={t('Pairing code')} maxLength={8} value={code}
-      onChange={e => setCode(e.target.value.toUpperCase())} style={{ letterSpacing: '.14em', fontWeight: 600, textAlign: 'center' }} />
+    <input className="input" placeholder={t('Login')} maxLength={32} value={login}
+      onChange={e => setLogin(e.target.value)} autoCapitalize="none" autoCorrect="off" />
+    <div style={{ height: 10 }} />
+    <input className="input" type="password" placeholder={t('Password')} value={password}
+      onChange={e => setPassword(e.target.value)} autoCapitalize="none" />
     <div style={{ height: 12 }} />
     <Button variant="primary" onClick={go} disabled={busy}>{busy ? t('Connecting…') : t('Connect')}</Button>
   </>

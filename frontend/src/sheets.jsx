@@ -23,6 +23,7 @@ import { exerciseMuscleSnapshot, loadOfWorkouts, MUSCLES, MUSCLE_NAME, normalize
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } from './lib/import-hevy.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan, planPrintHTML } from './lib/plan-share.js'
+import { scheduleFor } from './lib/week-cycle.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { exerciseHistory } from './lib/exercise-history.js'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement } from './lib/progression.js'
@@ -1593,7 +1594,7 @@ function PlanImport({ bundle, close }) {
 function DayOverride({ iso, close }) {
   const st = useStore(s => s.S)
   const wd = new Date(iso + 'T12:00:00').getDay()
-  const weeklyNames = [].concat(st.week[wd] || []).map(id => st.routines.find(r => r.id === id)?.name).filter(Boolean)
+  const weeklyNames = [].concat(scheduleFor(st, iso)[wd] || []).map(id => st.routines.find(r => r.id === id)?.name).filter(Boolean)
   const hasOvr = st.dayPlan[iso] !== undefined
   // A weekday can hold several routines; the per-date override stays single-pick, so picking
   // one here collapses a combined day to it (docs/COMBINE_ROUTINES.md §8). The check marks
@@ -1619,13 +1620,17 @@ function DayOverride({ iso, close }) {
 }
 export const dayOverrideSheet = iso => ui().openSheet(close => <DayOverride iso={iso} close={close} />)
 
-function DayAssign({ day, close }) {
+function DayAssign({ day, field = 'week', close }) {
   const st = useStore(s => s.S)
+  const update = useStore(s => s.update)
   // A weekday holds a routine-id list; this single-pick sheet sets an empty day to exactly one
   // routine (or rest). The inline ＋ Add routine on the Plan screen is what appends to a
-  // populated day.
-  const cur = [].concat(st.week[day] || [])
-  const set = v => { update(s => { if (v) s.week[day] = [v]; else delete s.week[day] }); close() }
+  // populated day. `field` is `week` or `weekB`.
+  const cur = [].concat((st[field] || {})[day] || [])
+  const set = v => { update(s => {
+    if (!s[field]) s[field] = {}
+    if (v) s[field][day] = [v]; else delete s[field][day]
+  }); close() }
   return <>
     <h3>{t(DAYN[day])}</h3>
     <div className="list">
@@ -1637,14 +1642,18 @@ function DayAssign({ day, close }) {
     </div>
   </>
 }
-export const dayAssignSheet = day => ui().openSheet(close => <DayAssign day={day} close={close} />)
+export const dayAssignSheet = (day, field = 'week') => ui().openSheet(close => <DayAssign day={day} field={field} close={close} />)
 
 // ＋ Add routine on a populated weekday: single-pick, appends to the day's list. A routine
 // already on that day is disabled; picking one closes the sheet.
-function DayAddRoutine({ day, close }) {
+function DayAddRoutine({ day, field = 'week', close }) {
   const st = useStore(s => s.S)
-  const on = new Set([].concat(st.week[day] || []))
-  const add = id => { update(s => { s.week[day] = [...[].concat(s.week[day] || []), id] }); close() }
+  const update = useStore(s => s.update)
+  const on = new Set([].concat((st[field] || {})[day] || []))
+  const add = id => { update(s => {
+    if (!s[field]) s[field] = {}
+    s[field][day] = [...[].concat(s[field][day] || []), id]
+  }); close() }
   return <>
     <h3>{t('Add routine')}</h3>
     <div className="list">
@@ -1660,7 +1669,7 @@ function DayAddRoutine({ day, close }) {
     </div>
   </>
 }
-export const dayAddRoutineSheet = day => ui().openSheet(close => <DayAddRoutine day={day} close={close} />)
+export const dayAddRoutineSheet = (day, field = 'week') => ui().openSheet(close => <DayAddRoutine day={day} field={field} close={close} />)
 
 /* ============================ workout detail ============================ */
 function WorkoutDetail({ w, close }) {
@@ -1801,6 +1810,25 @@ export function WorkoutRow({ w, onClick }) {
 /* ============================ workout lifecycle ============================ */
 // `routineIds` accepts `string | string[] | null` — `[r.id]` for one routine,
 // `effectiveRoutineIds(...)` for today's planned session, `[]` / null for explicit freestyle.
+function PickComplex({ iso, close }) {
+  const st = useStore(s => s.S)
+  const pick = id => {
+    close()
+    if (iso === todayISO()) startFlow([id])
+    else beginBackfill({ iso, time: '18:00', durationMin: 60, routineId: id, replaceId: null })
+  }
+  return <>
+    <h3>{t('Pick a complex')}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>{t('The sets and weights you log stay on this day. The saved complex is unchanged.')}</div>
+    {st.routines.length ? <div className="list">{st.routines.map(r => <div key={r.id} className="item" {...tappable(() => pick(r.id))}>
+      <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
+      <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
+      <Icon name="chevronRight" className="chev" />
+    </div>)}</div> : <div className="muted small">{t('No complexes yet.')}</div>}
+  </>
+}
+export const pickDayComplex = iso => ui().openSheet(close => <PickComplex iso={iso} close={close} />)
+
 export function startFlow(routineIds) {
   // The weigh-in is a setting (Settings → During a workout, issue #137): off goes straight
   // into the session with no body weight on it, same as "Start without weighing in".

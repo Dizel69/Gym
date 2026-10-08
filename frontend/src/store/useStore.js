@@ -23,7 +23,7 @@ const POLL_MS = 30000        // while the app is open and signed in, ask the ser
 export const DEF = {
   unit: 'kg', restSec: 90, restPauseSec: 15, sound: true, soundOnSilent: false, timerFlash: false, keepAwake: true, lang: 'en',
   theme: 'dark', accent: 'lime', body: 'male', targetW: null,
-  bodyweight: [], routines: [], week: {}, dayPlan: {},
+  bodyweight: [], routines: [], week: {}, weekB: {}, weekCycle: 1, weekAnchor: null, dayPlan: {},
   exWeights: {}, workouts: [], active: null, customEx: [], gifSize: 'full',
   // How the active workout is laid out — 'cards' (one exercise at a time with Prev/Next),
   // 'list' (every exercise stacked and scrollable) or 'compact' (that stack stripped to just
@@ -500,8 +500,8 @@ export const useStore = create((set, get) => {
     },
     // Redeems the pairing code shown in the browser (Settings → "Pair the mobile app") and
     // switches this device over to that account, same as signing in on the web does.
-    async connectToServer(url, code, ask) {
-      const user = await connect(url, code)   // throws on a bad URL/expired code — caller shows it
+    async connectToServer(url, login, password, ask) {
+      const user = await connect(url, login, password)   // throws on a bad URL or password — caller shows it
       get().setUser(user)
       await get().refreshConfig()   // what this server offers (the Coach, guest mode) — see boot()
       await get().adoptProfile(ask)

@@ -48,6 +48,15 @@ export async function api(path, opts) {
 
 // Bootstraps the connection itself: the base isn't configured yet (that's what this call decides),
 // so it talks straight to the server the user typed in, no Authorization header.
+export async function passwordAuth(serverBase, path, body) {
+  const r = await fetch((serverBase || '') + path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) { const e = new Error(data.error || ('HTTP ' + r.status)); e.status = r.status; throw e }
+  return data
+}
+
 export async function pairRedeem(serverBase, code) {
   const r = await fetch(serverBase + '/api/pair/redeem', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })

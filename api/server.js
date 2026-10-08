@@ -463,7 +463,8 @@ const clearCookie = COOKIE === LEGACY_COOKIE
 const CSRF_EXEMPT = new Set([
   'POST /api/register/options', 'POST /api/register/verify',
   'POST /api/login/options', 'POST /api/login/verify',
-  'POST /api/pair/redeem'
+  'POST /api/pair/redeem',
+  'POST /api/password/login', 'POST /api/password/setup'
 ]);
 const originsMatch = (a, b) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 function csrfOk(req, key) {
@@ -680,6 +681,38 @@ if (AUDIT_ON) {
   setInterval(compactAudit, 3600000).unref();    // honour AUDIT_DAYS on an idle instance too
 }
 
+/* ---------- passwords ---------- */
+// Login is the name people type. Stored lowercased so "Anna" and "anna" are one account.
+function normalizeLogin(value) {
+  return text(value).trim().toLowerCase()
+}
+function loginError(login) {
+  if (!/^[a-z0-9._-]{3,32}$/.test(login)) return 'login must be 3–32 letters, digits, . _ or -'
+  return null
+}
+function passwordError(password) {
+  const p = text(password)
+  if (p.length < 8 || p.length > 200) return 'password must be at least 8 characters'
+  return null
+}
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16)
+  const hash = crypto.scryptSync(password, salt, 32)
+  return { salt: salt.toString('base64url'), hash: hash.toString('base64url') }
+}
+function checkPassword(password, stored) {
+  if (!stored || !stored.salt || !stored.hash) return false
+  let salt, expect
+  try { salt = Buffer.from(stored.salt, 'base64url'); expect = Buffer.from(stored.hash, 'base64url') }
+  catch { return false }
+  const hash = crypto.scryptSync(String(password), salt, 32)
+  if (hash.length !== expect.length) return false
+  return crypto.timingSafeEqual(hash, expect)
+}
+function accountView(user) {
+  return { id: user.id, name: user.name, admin: isAdmin(user), login: user.login || null }
+}
+
 /* ---------- routes ---------- */
 const routes = {
   'GET /api/health': async (req, res) => json(res, 200, { ok: true, users: db.users.length }),
@@ -690,7 +723,7 @@ const routes = {
   // the app it was before the feature existed.
   'GET /api/config': async (req, res) => {
     const coach = coachConfig.publicConfig();
-    json(res, 200, { invite_only: INVITE_ONLY, allow_guest: ALLOW_GUEST, ...(coach ? { coach } : {}) });
+    json(res, 200, { invite_only: INVITE_ONLY, allow_guest: ALLOW_GUEST, setup: db.users.length === 0, ...(coach ? { coach } : {}) });
   },
 
   'GET /api/me': async (req, res) => {
@@ -833,6 +866,61 @@ const routes = {
     }
     audit(req, 'auth.login.ok', { user });
     json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user) });
+  },
+
+  // First account on an empty server. That person is the admin and creates everyone else.
+  'POST /api/password/setup': async (req, res) => {
+    const body = await readBody(req);
+    if (db.users.length) return json(res, 409, { error: 'an account already exists' });
+    const login = normalizeLogin(body.login);
+    const password = text(body.password);
+    const name = text(body.name).trim().slice(0, 40) || login;
+    const err = loginError(login) || passwordError(password);
+    if (err) return json(res, 400, { error: err });
+    const user = {
+      id: crypto.randomBytes(12).toString('base64url'), name, login,
+      pass: hashPassword(password), admin: true, created: new Date().toISOString()
+    };
+    db.users.push(user);
+    saveDb();
+    audit(req, 'auth.setup.ok', { user });
+    json(res, 200, { token: makeSession(user), user: accountView(user) }, { 'Set-Cookie': sessionCookie(user) });
+  },
+
+  'POST /api/password/login': async (req, res) => {
+    const body = await readBody(req);
+    const login = normalizeLogin(body.login);
+    const password = text(body.password);
+    const user = db.users.find(u => u.login === login);
+    if (!user || !checkPassword(password, user.pass)) {
+      audit(req, 'auth.login.fail', { ok: false, msg: 'bad-password' });
+      return json(res, 401, { error: 'wrong login or password' });
+    }
+    if (user.disabled) {
+      audit(req, 'auth.login.fail', { ok: false, user, msg: 'account-disabled' });
+      return json(res, 403, { error: 'this account has been disabled' });
+    }
+    audit(req, 'auth.login.ok', { user });
+    json(res, 200, { token: makeSession(user), user: accountView(user) }, { 'Set-Cookie': sessionCookie(user) });
+  },
+
+  'POST /api/admin/users/create': async (req, res) => {
+    const admin = requireAdmin(req, res); if (!admin) return;
+    const body = await readBody(req);
+    const login = normalizeLogin(body.login);
+    const password = text(body.password);
+    const name = text(body.name).trim().slice(0, 40) || login;
+    const err = loginError(login) || passwordError(password);
+    if (err) return json(res, 400, { error: err });
+    if (db.users.some(u => u.login === login)) return json(res, 409, { error: 'login is taken' });
+    const user = {
+      id: crypto.randomBytes(12).toString('base64url'), name, login,
+      pass: hashPassword(password), created: new Date().toISOString()
+    };
+    db.users.push(user);
+    saveDb();
+    audit(req, 'admin.user.create', { user: admin, target: user });
+    json(res, 200, { user: { id: user.id, name: user.name, login: user.login } });
   },
 
   // Reads the session purely so the sign-out can be recorded; the cookie is cleared either way.
@@ -1049,7 +1137,7 @@ const routes = {
       const workouts = records(S.workouts);
       const last = workouts[workouts.length - 1];
       return {
-        id: u.id, name: u.name, created: u.created || null,
+        id: u.id, name: u.name, login: u.login || null, created: u.created || null,
         disabled: !!u.disabled, admin: isAdmin(u), invitedBy: u.invitedBy || null,
         workouts: workouts.length,
         lastWorkout: last ? last.d : null,

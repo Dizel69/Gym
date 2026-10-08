@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { api } from '../lib/api.js'
+import { t } from '../lib/i18n.js'
 import { fmtDate, fmtNum, fmtVol, fmtDur } from '../lib/format.js'
 import { auditCat, auditLine, fmtWhen } from '../lib/audit.js'
 import { workoutVolume, setsDone } from '../lib/history.js'
@@ -213,6 +214,36 @@ function AuditCard({ tick }) {
   </div>
 }
 
+function NewUserCard({ onCreated }) {
+  const toast = useUI(s => s.toast)
+  const [name, setName] = useState('')
+  const [login, setLogin] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const go = async () => {
+    if (!login.trim() || !password) { toast(t('Enter a login and a password')); return }
+    setBusy(true)
+    try {
+      await api('/api/admin/users/create', { method: 'POST', body: JSON.stringify({ name: name.trim(), login: login.trim(), password }) })
+      setName(''); setLogin(''); setPassword('')
+      toast(t('User created'))
+      onCreated()
+    } catch (e) { toast(e.message || t('Could not create the user')) }
+    finally { setBusy(false) }
+  }
+  return <div className="card">
+    <h2 style={{ margin: 0 }}>{t('Add a user')}</h2>
+    <div className="adm-lead">{t('They sign in with this login and password. You can hand them the server address too.')}</div>
+    <input className="input" placeholder={t('Your name')} maxLength={40} value={name} onChange={e => setName(e.target.value)} />
+    <div style={{ height: 8 }} />
+    <input className="input" placeholder={t('Login')} maxLength={32} value={login} autoCapitalize="none" autoCorrect="off" onChange={e => setLogin(e.target.value)} />
+    <div style={{ height: 8 }} />
+    <input className="input" type="password" placeholder={t('Password')} value={password} autoCapitalize="none" onChange={e => setPassword(e.target.value)} />
+    <div style={{ height: 10 }} />
+    <Button size="sm" variant="primary" onClick={go} disabled={busy}>{busy ? t('Saving…') : t('Create user')}</Button>
+  </div>
+}
+
 export default function Admin() {
   const nav = useNavigate()
   const user = useStore(s => s.user)
@@ -268,13 +299,15 @@ export default function Admin() {
 
     <InvitesCard invites={invites} reload={loadInvites} inviteOnly={inviteOnly} />
 
+    <NewUserCard onCreated={loadUsers} />
+
     <div className="card">
       <h2 style={{ margin: 0 }}>Users</h2>
       <div className="adm-lead">Everyone with a profile on this instance. Tap one to see their activity or to disable the account — their data is never deleted from here.</div>
       <div className="list">
         {(users || []).map(u => <div key={u.id} className="item" onClick={() => openUser(u.id)} style={u.disabled ? { opacity: .55 } : null}>
           <div className="grow"><div className="tt">{u.live && <Icon name="dot" style={{ fontSize: 9, color: 'var(--green)', display: 'inline-block', marginRight: 5 }} />}{u.name} {u.admin && <span className="adm-pill acc" style={{ marginLeft: 4 }}>admin</span>}{u.disabled && <span className="adm-pill bad" style={{ marginLeft: 4 }}>disabled</span>}</div>
-            <div className="ss">{u.live ? 'training now · ' + u.live.name : u.workouts + ' workouts' + (u.lastWorkout ? ' · last ' + fmtDate(u.lastWorkout) : '') + ' · last sync ' + rel(u.lastSync)}</div></div>
+            <div className="ss">{(u.login ? u.login + ' · ' : '') + (u.live ? 'training now · ' + u.live.name : u.workouts + ' workouts' + (u.lastWorkout ? ' · last ' + fmtDate(u.lastWorkout) : '') + ' · last sync ' + rel(u.lastSync))}</div></div>
           {u.hasPush && <Icon name="bell" title="push notifications on" style={{ fontSize: 15, color: 'var(--label-3)' }} />}<Icon name="chevronRight" className="chev" />
         </div>)}
         {users && !users.length && <div className="adm-empty">No users yet.</div>}

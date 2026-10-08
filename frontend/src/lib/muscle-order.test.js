@@ -5,8 +5,8 @@ import { inMuscleOrder, MUSCLES } from './muscles.js'
 
 describe('muscles in the map order', () => {
   it('is the same list whatever order it was picked in', () => {
-    expect(inMuscleOrder(['triceps', 'chest', 'deltoids'])).toEqual(['deltoids', 'chest', 'triceps'])
-    expect(inMuscleOrder(['chest', 'deltoids', 'triceps'])).toEqual(['deltoids', 'chest', 'triceps'])
+    expect(inMuscleOrder(['triceps', 'chest', 'front-deltoid'])).toEqual(['front-deltoid', 'chest', 'triceps'])
+    expect(inMuscleOrder(['chest', 'front-deltoid', 'triceps'])).toEqual(['front-deltoid', 'chest', 'triceps'])
   })
   it('follows MUSCLES, leaves unknown names at the end and the input alone', () => {
     const picked = ['calves', 'made-up', 'abs']

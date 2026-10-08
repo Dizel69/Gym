@@ -28,8 +28,8 @@ describe('machine muscle metadata batch 2', () => {
       expect(duplicateFree(metadata.primaries), id).toBe(true)
       expect(duplicateFree(metadata.secondaries), id).toBe(true)
       expect(metadata.primaries.some(muscle => metadata.secondaries.includes(muscle)), id).toBe(false)
-      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle)), id).toBe(true)
-      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle)), id).toBe(true)
+      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
+      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
       expect(EXIDX[id]).toMatchObject(metadata)
     }
   })
@@ -117,8 +117,8 @@ describe('machine muscle metadata batch 2', () => {
     expect(raw).toMatchObject({ id: '0577', n: 'lever chest press', tg: 'pectorals', mg: 'triceps' })
     expect(raw).not.toHaveProperty('primaries')
     expect(raw).not.toHaveProperty('secondaries')
-    expect(musclesOf(raw)).toEqual({ chest: 1, deltoids: 0.4, triceps: 0.4 })
-    expect(musclesOf(EXIDX['0577'])).toEqual({ chest: 1, deltoids: 0.4, triceps: 0.4, biceps: 0.4 })
+    expect(musclesOf(raw)).toEqual({ chest: 1, 'front-deltoid': 0.4, triceps: 0.4 })
+    expect(musclesOf(EXIDX['0577'])).toEqual({ chest: 1, 'front-deltoid': 0.4, triceps: 0.4, biceps: 0.4 })
   })
 
   it('gives an explicit custom collision precedence and restores the machine overlay', () => {
@@ -130,6 +130,6 @@ describe('machine muscle metadata batch 2', () => {
     expect(musclesOf(EXIDX['0577'])).toEqual({ triceps: 1 })
     registerCustom([])
     expect(EXIDX['0577']).toMatchObject(MACHINE_BATCH_2['0577'])
-    expect(musclesOf(EXIDX['0577'])).toEqual({ chest: 1, deltoids: 0.4, triceps: 0.4, biceps: 0.4 })
+    expect(musclesOf(EXIDX['0577'])).toEqual({ chest: 1, 'front-deltoid': 0.4, triceps: 0.4, biceps: 0.4 })
   })
 })

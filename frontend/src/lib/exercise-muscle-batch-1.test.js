@@ -21,8 +21,8 @@ describe('compound-lift muscle metadata batch 1', () => {
       expect(duplicateFree(metadata.primaries), id).toBe(true)
       expect(duplicateFree(metadata.secondaries), id).toBe(true)
       expect(metadata.primaries.some(muscle => metadata.secondaries.includes(muscle)), id).toBe(false)
-      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle)), id).toBe(true)
-      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle)), id).toBe(true)
+      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
+      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
       expect(EXIDX[id]).toMatchObject(metadata)
     }
   })

@@ -143,11 +143,6 @@ export default function Settings() {
     }
     rd.readAsText(f)
   }
-  const signInHere = async () => {
-    try { const u = await passkeyLogin(); setUser(u); await adoptProfile(askAddDeviceData); toast(t('Welcome back, {0}', u.name)) }
-    catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') toast(e.message || t('Sign-in failed')) }
-  }
-  const registerHere = () => useUI.getState().openSheet(close => <RegisterInline close={close} setUser={setUser} pushState={pushState} pullState={pullState} toast={toast} />)
   // Ends the profile's sessions on every device — this one included, so on success it lands in
   // the same place as the plain sign-out above (home, local data cleared). On failure nothing
   // local is touched: still signed in here, and say so rather than leaving a half-signed-out app.
@@ -208,18 +203,14 @@ export default function Settings() {
         <Row icon="rocket" iconTint="var(--indigo)" title={t('Self-host openGym')} subtitle={t('Passkey sign-in, sync across your devices, your own data.')} accessory="chevron"
           onClick={() => window.open(REPO, '_blank', 'noopener')} />
       </> : user ? <>
-        <Row icon="personCircle" iconTint="var(--grey)" title={user.name} subtitle={t('Signed in with passkey — data syncs to this profile.')} />
+        <Row icon="personCircle" iconTint="var(--grey)" title={user.name} subtitle={user.login ? user.login : t('Signed in — data syncs to this profile.')} />
         {user.admin && <Row icon="wrench" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
-        <Row icon="link" iconTint="var(--blue)" title={t('Pair the mobile app')} subtitle={t('Connect the openGym app on your phone to this account.')} accessory="chevron"
-          onClick={() => useUI.getState().openSheet(close => <PairSheet close={close} />)} />
         <Row icon="signOut" iconTint="var(--red)" title={t('Sign out')} danger onClick={() => confirmSheet({ title: t('Sign out?'), message: t('Your data is synced to your profile first, then cleared from this device.'), confirmText: t('Sign out'), danger: true, onConfirm: () => { signOut(); nav('/home') } })} />
         <Row icon="shield" iconTint="var(--red)" title={t('Sign out everywhere')} subtitle={t('Ends this profile’s sessions on all your devices.')} danger onClick={signOutEverywhere} />
-      </> : webauthnOK() ? <>
-        <Row icon="sparkles" iconTint="var(--acc)" title={t('Create passkey profile')} subtitle={t('Keeps your data safe and separate per person.')} accessory="chevron" onClick={registerHere} />
-        <Row icon="person" iconTint="var(--blue)" title={t('Sign in with passkey')} accessory="chevron" onClick={signInHere} />
-      </> : (
-        <Row icon="lock" iconTint="var(--grey)" title={t('Passkeys not supported in this browser.')} />
-      )}
+      </> : <>
+        <Row icon="person" iconTint="var(--blue)" title={t('Sign in')} subtitle={t('Use the login and password your admin gave you.')} accessory="chevron"
+          onClick={() => useUI.getState().openSheet(close => <PasswordSignIn close={close} />)} />
+      </>}
     </Section>
     {!user && !DEMO && !MOBILE && <p className="sect-f" style={{ marginTop: -18, marginBottom: 22 }}>{t('Guest mode — data lives only in this browser.')}</p>}
 
@@ -685,6 +676,33 @@ function PairSheet({ close }) {
 // The same registration as the sign-in screen's, reached from Settings instead. It asks for
 // the invite code on the same terms: an invite-only instance rejects a registration without
 // one, so a form that cannot collect it is a form that cannot succeed.
+function PasswordSignIn({ close }) {
+  const { setUser, adoptProfile } = useStore()
+  const [login, setLogin] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const go = async () => {
+    if (!login.trim() || !password) { useUI.getState().toast(t('Enter your login and password')); return }
+    setBusy(true)
+    try {
+      const data = await api('/api/password/login', { method: 'POST', body: JSON.stringify({ login: login.trim(), password }) })
+      setUser(data.user)
+      await adoptProfile(askAddDeviceData)
+      close()
+      useUI.getState().toast(t('Welcome back, {0}', data.user.name))
+    } catch (e) { useUI.getState().toast(e.message || t('Sign-in failed')) }
+    finally { setBusy(false) }
+  }
+  return <>
+    <h3>{t('Sign in')}</h3>
+    <input className="input" placeholder={t('Login')} maxLength={32} value={login} autoCapitalize="none" autoCorrect="off" onChange={e => setLogin(e.target.value)} />
+    <div style={{ height: 10 }} />
+    <input className="input" type="password" placeholder={t('Password')} value={password} autoCapitalize="none" onChange={e => setPassword(e.target.value)} />
+    <div style={{ height: 12 }} />
+    <Button variant="primary" onClick={go} disabled={busy}>{busy ? t('Signing in…') : t('Sign in')}</Button>
+  </>
+}
+
 function RegisterInline({ close, setUser, pushState, pullState, toast }) {
   const nameRef = useRef(null)
   const [code, setCode] = useState('')

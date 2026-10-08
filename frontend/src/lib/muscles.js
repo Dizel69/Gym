@@ -3,18 +3,19 @@
 // The exercise dataset names muscles in free text and is not consistent about it:
 // "shoulders", "deltoids" and "delts" are the same thing, so are "quads" and
 // "quadriceps", "lats" and "latissimus dorsi", "core" and "abdominals". Nineteen
-// primary and forty secondary spellings collapse onto the eighteen muscles the body
+// primary and forty secondary spellings collapse onto the muscles the body
 // map can actually draw, via ALIAS below. Anything genuinely undrawable (hands,
 // ankles, "cardiovascular system") maps to null and is dropped rather than guessed at.
 
 import { isWarmupRow } from './workout-model.js'
 import { EXIDX, smOf } from './exercises.js'
 import { todayISO, weekKey, MONDAY } from './format.js'
+import { scheduleFor } from './week-cycle.js'
 
 // The muscles a map can shade, in head-to-toe order — also the order of any list
 // built from them, so "what am I neglecting" reads top-down like a body.
 export const MUSCLES = [
-  'trapezius', 'deltoids', 'chest', 'upper-back', 'serratus',
+  'trapezius', 'front-deltoid', 'side-deltoid', 'rear-deltoid', 'chest', 'upper-back', 'serratus',
   'biceps', 'triceps', 'forearm',
   'abs', 'obliques', 'lower-back',
   'gluteal', 'quadriceps', 'hamstring', 'adductors', 'hip-flexors',
@@ -35,7 +36,8 @@ export const INERT = ['head', 'hair', 'neck', 'hands', 'feet', 'knees', 'ankles'
 // the cardio pseudo-muscle only under the dataset's own lowercase spelling, and every place
 // that shows it capitalises with CSS — a capitalised key here rendered English everywhere.
 export const MUSCLE_NAME = {
-  trapezius: 'Traps', deltoids: 'Shoulders', chest: 'Chest', 'upper-back': 'Upper back',
+  trapezius: 'Traps', 'front-deltoid': 'Front delts', 'side-deltoid': 'Side delts', 'rear-deltoid': 'Rear delts',
+  deltoids: 'Shoulders', chest: 'Chest', 'upper-back': 'Upper back',
   serratus: 'Serratus', biceps: 'Biceps', triceps: 'Triceps', forearm: 'Forearms',
   abs: 'Abs', obliques: 'Obliques', 'lower-back': 'Lower back', gluteal: 'Glutes',
   quadriceps: 'Quads', hamstring: 'Hamstrings', adductors: 'Adductors',
@@ -45,14 +47,19 @@ export const MUSCLE_NAME = {
 // Every spelling that occurs in the dataset's `tg` and `sm` fields. null = not drawable.
 const ALIAS = {
   // primaries
-  abs: 'abs', pectorals: 'chest', biceps: 'biceps', glutes: 'gluteal', delts: 'deltoids',
+  abs: 'abs', pectorals: 'chest', biceps: 'biceps', glutes: 'gluteal',
   triceps: 'triceps', 'upper back': 'upper-back', lats: 'upper-back', calves: 'calves',
   quads: 'quadriceps', forearms: 'forearm', hamstrings: 'hamstring', spine: 'lower-back',
   traps: 'trapezius', adductors: 'adductors', 'serratus anterior': 'serratus',
   abductors: 'gluteal', 'levator scapulae': 'trapezius', 'cardiovascular system': 'cardiovascular system',
-  // secondaries
-  shoulders: 'deltoids', deltoids: 'deltoids', 'rear deltoids': 'deltoids',
-  'rotator cuff': 'deltoids', quadriceps: 'quadriceps', core: 'abs', abdominals: 'abs',
+  // A bare "deltoid" is resolved from the exercise name in deltHeads(). These
+  // spellings name one head outright.
+  'front delts': 'front-deltoid', 'front deltoids': 'front-deltoid', 'anterior deltoid': 'front-deltoid',
+  'side delts': 'side-deltoid', 'lateral deltoid': 'side-deltoid', 'lateral deltoids': 'side-deltoid',
+  'middle delts': 'side-deltoid', 'medial deltoid': 'side-deltoid',
+  'rear deltoids': 'rear-deltoid', 'rear delts': 'rear-deltoid', 'posterior deltoid': 'rear-deltoid',
+  shoulders: 'front-deltoid', deltoids: 'front-deltoid', delts: 'front-deltoid',
+  'rotator cuff': 'rear-deltoid', quadriceps: 'quadriceps', core: 'abs', abdominals: 'abs',
   'lower abs': 'abs', chest: 'chest', 'upper chest': 'chest', 'hip flexors': 'hip-flexors',
   obliques: 'obliques', 'lower back': 'lower-back', rhomboids: 'upper-back',
   trapezius: 'trapezius', back: 'upper-back', 'latissimus dorsi': 'upper-back',
@@ -68,7 +75,7 @@ const ALIAS = {
 const BY_BODYPART = {
   chest: { chest: 1 },
   back: { 'upper-back': 0.75, 'lower-back': 0.25 },
-  shoulders: { deltoids: 1 },
+  shoulders: { 'front-deltoid': 0.4, 'side-deltoid': 0.4, 'rear-deltoid': 0.2 },
   'upper arms': { biceps: 0.5, triceps: 0.5 },
   'lower arms': { forearm: 1 },
   waist: { abs: 0.7, obliques: 0.3 },
@@ -80,6 +87,34 @@ const BY_BODYPART = {
 }
 
 const SECONDARY = 0.4   // a supporting muscle counts this much against a primary
+
+const GENERIC_DELT = new Set(['delts', 'deltoid', 'deltoids', 'shoulders', 'shoulder'])
+
+// The catalogue calls every shoulder "deltoids". The head comes from the name:
+// a press loads the front and the side, a lateral raise only the side, a rear
+// fly only the back. A bare "deltoids" on a chest or back exercise is the front
+// head — that is the one a bench press actually uses.
+function deltHeads(ex) {
+  const n = String(ex?.n || ex?.name || '').toLowerCase()
+  const shoulder = ex?.bp === 'shoulders' || /\b(shoulder|delt|military|overhead|arnold)\b/.test(n)
+  if (/(rear|reverse fly|face pull|posterior|y-raise|external rotation|internal rotation)/.test(n)
+      && (shoulder || /(delt|fly|raise|rotation)/.test(n))) return ['rear-deltoid']
+  if (/lateral to front|front to lateral/.test(n)) return ['side-deltoid', 'front-deltoid']
+  if (/front raise|forward raise|front shoulder raise/.test(n)) return ['front-deltoid']
+  if (/lateral raise|side raise/.test(n)) return ['side-deltoid']
+  if (/upright row/.test(n)) return ['side-deltoid']
+  if (shoulder && /\b(press|military|arnold|jerk|push press)\b/.test(n)) return ['front-deltoid', 'side-deltoid']
+  if (shoulder) return ['front-deltoid', 'side-deltoid']
+  return ['front-deltoid']
+}
+
+function slugsOf(name, ex) {
+  const token = String(name || '').toLowerCase().trim()
+  if (MUSCLES.includes(token)) return [token]
+  if (GENERIC_DELT.has(token)) return deltHeads(ex)
+  const slug = ALIAS[token]
+  return slug ? [slug] : []
+}
 
 const arrayOf = value => Array.isArray(value) ? value : value == null || value === '' ? [] : [value]
 
@@ -151,11 +186,12 @@ function canonicalMuscle(value) {
   return ALIAS[name] || null
 }
 
-function canonicalUnique(values) {
+function canonicalUnique(values, ex) {
   const out = []
   for (const value of values || []) {
-    const slug = canonicalMuscle(value)
-    if (slug && !out.includes(slug)) out.push(slug)
+    for (const slug of slugsOf(value, ex)) {
+      if (!out.includes(slug)) out.push(slug)
+    }
   }
   return out
 }
@@ -169,9 +205,9 @@ export function muscleGroupsOf(entry) {
   const source = useParts
     ? [...parts.primary, ...parts.secondary]
     : explicit || [ex?.tg, ex?.mg, ...arrayOf(smOf(ex))]
-  const out = canonicalUnique(source)
+  const out = canonicalUnique(source, ex)
   if (!out.length && !useParts) {
-    canonicalUnique(Object.keys(BY_BODYPART[ex?.bp] || {})).forEach(slug => out.push(slug))
+    canonicalUnique(Object.keys(BY_BODYPART[ex?.bp] || {}), ex).forEach(slug => out.push(slug))
   }
   return out
 }
@@ -193,16 +229,17 @@ export function musclesOf(ex) {
   if (sourceEx !== ex) return musclesOf(sourceEx)
   if (ex.muscleWeights && typeof ex.muscleWeights === 'object' && !Array.isArray(ex.muscleWeights)) {
     const snapshot = {}
+    const weights = { ...ex.muscleWeights }
+    if (weights.deltoids != null && weights['front-deltoid'] == null) weights['front-deltoid'] = weights.deltoids
     MUSCLES.forEach(slug => {
-      const weight = Number(ex.muscleWeights[slug])
+      const weight = Number(weights[slug])
       if (Number.isFinite(weight) && weight > 0) snapshot[slug] = weight
     })
     if (Object.keys(snapshot).length) return snapshot
   }
   const out = {}
   const add = (name, w) => {
-    const slug = canonicalMuscle(name)
-    if (slug) out[slug] = Math.max(out[slug] || 0, w)
+    for (const slug of slugsOf(name, ex)) out[slug] = Math.max(out[slug] || 0, w)
   }
   const parts = explicitPartsOf(ex)
   const explicit = explicitGroupsOf(ex)
@@ -231,8 +268,8 @@ export function exerciseMuscleSnapshot(ex) {
   if (Object.keys(weights).length) out.muscleWeights = { ...weights }
   const parts = explicitPartsOf(ex)
   if (parts) {
-    const primaries = canonicalUnique(parts.primary)
-    const secondaries = canonicalUnique(parts.secondary).filter(slug => !primaries.includes(slug))
+    const primaries = canonicalUnique(parts.primary, ex)
+    const secondaries = canonicalUnique(parts.secondary, ex).filter(slug => !primaries.includes(slug))
     if (primaries.length) out.primaries = primaries
     if (secondaries.length) out.secondaries = secondaries
   }
@@ -286,6 +323,20 @@ export function muscleBalanceWindow(workouts, win, now = Date.now(), today = tod
 /** Load a routine *would* produce, from its planned set counts. */
 export const loadOfRoutine = routine =>
   loadOf((routine?.ex || []).map(c => ({ id: c.id, ex: c, sets: c.sets || 1 })))
+
+/** Muscles the routines on this calendar week's schedule would train. A routine on two days counts twice. */
+export function loadOfWeekPlan(S, iso = todayISO()) {
+  const map = scheduleFor(S, iso)
+  const load = {}
+  const routines = S?.routines || []
+  for (const ids of Object.values(map)) {
+    for (const id of [].concat(ids || [])) {
+      const part = loadOfRoutine(routines.find(r => r.id === id))
+      for (const slug in part) load[slug] = (load[slug] || 0) + part[slug]
+    }
+  }
+  return load
+}
 
 /** Load for a workout still in progress — the sets ticked so far. */
 export const loadOfActive = active =>
