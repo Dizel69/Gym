@@ -10,7 +10,7 @@ export const LANGS = {
   ko: '한국어', hi: 'हिन्दी', th: 'ไทย', hu: 'Magyar'
 }
 export const INSTR_LANGS = ['en', 'es', 'fr', 'it', 'tr', 'ru', 'zh', 'hi', 'pl', 'ko', 'pt-BR', 'hu']
-export const EXERCISE_NAME_LANGS = ['pt-BR', 'hu']
+export const EXERCISE_NAME_LANGS = ['pt-BR', 'hu', 'ru']
 export const DATE_LOCALES = {
   en: 'en-GB', de: 'de-DE', 'de-CH': 'de-CH', es: 'es-ES', fr: 'fr-FR', it: 'it-IT',
   pt: 'pt-PT', 'pt-BR': 'pt-BR',
@@ -83,9 +83,10 @@ export const exerciseNameFor = ex => {
   // context. Compared in the active language's own casing rules, not hardcoded to one —
   // this only ever differs from ordinary casing for languages with locale-specific rules
   // (e.g. Turkish dotless i), which does not include any language shipped here today.
-  return translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
-    ? translated
-    : `${translated} (${ex.n})`
+  if (translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')) return translated
+  // The Russian catalogue is shown in Russian. Search still matches the English title.
+  if (baseLang(lang) === 'ru') return translated
+  return `${translated} (${ex.n})`
 }
 
 // Search both the localized and canonical English title without changing persisted data.
