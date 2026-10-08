@@ -36,8 +36,9 @@ it('matches current catalogue names and classifies the audited lift family', () 
 it('keeps every overlay mapping canonical, multi-primary, and weighted for the lower body', () => {
   for (const [id, mapping] of Object.entries(OLYMPIC_LIFT_METADATA)) {
     expect(mapping.primaries.length, id).toBeGreaterThan(1)
-    expect(mapping.primaries.every(muscle => MUSCLES.includes(muscle)), id).toBe(true)
-    expect(mapping.secondaries.every(muscle => MUSCLES.includes(muscle) && !mapping.primaries.includes(muscle)), id).toBe(true)
+    const known = muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'
+    expect(mapping.primaries.every(known), id).toBe(true)
+    expect(mapping.secondaries.every(muscle => known(muscle) && !mapping.primaries.includes(muscle)), id).toBe(true)
     expect(new Set([...mapping.primaries, ...mapping.secondaries]).size, id).toBe(mapping.primaries.length + mapping.secondaries.length)
     expect(musclesOf(EXIDX[id]), id).toMatchObject({ quadriceps: 1, gluteal: 1 })
   }

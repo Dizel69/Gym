@@ -142,7 +142,7 @@ describe('strengthExerciseRowsForMuscle', () => {
     expect(benchRow.weight).toBe(1)
     expect(benchRow.primary).toBe('chest')
     expect(flyRow.weight).toBe(0.4)
-    expect(flyRow.primary).toBe('deltoids')
+    expect(flyRow.primary).toBe('front-deltoid')
     expect(flyRow.decay).toBe(1) // chest is at full retention
     expect(flyRow.current).toBe(28)
   })

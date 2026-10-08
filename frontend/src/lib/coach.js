@@ -506,7 +506,17 @@ const CHANGE_APPLY = {
     s.routines = s.routines.filter(r => r.id !== id)
     // A week pointing at a routine that no longer exists reads as a rest day anyway; clearing
     // it keeps the plan honest rather than merely harmless.
-    Object.keys(s.week || {}).forEach(d => { if (s.week[d] === id) delete s.week[d] })
+    for (const field of ['week', 'weekB']) {
+      const map = s[field]
+      if (!map) continue
+      Object.keys(map).forEach(d => {
+        if (map[d] === id) delete map[d]
+        else if (Array.isArray(map[d])) {
+          const next = map[d].filter(rid => rid !== id)
+          if (next.length) map[d] = next; else delete map[d]
+        }
+      })
+    }
     // RoutineEdit does the same on a hand-deleted routine. A pointer left behind here is not
     // merely inert: the day still counts as overridden, so it wears a "rescheduled" badge for good.
     const dropped = {}

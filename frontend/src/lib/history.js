@@ -1,5 +1,6 @@
 // Pure helpers over the state object S (ported 1:1 from the vanilla app).
 import { todayISO, isoOf, weekKey, weekStartOf, fmtNum } from './format.js'
+import { cycleOn, scheduleFor } from './week-cycle.js'
 import { isCardio, isBodyweightEq, isAssisted, betterWeight } from './exercises.js'
 import { phaseForSet, modeForSet, modeForEntry, isWarmupRow, normalizeMode, completedVolumeOf, nextDropWeight, splitBurstReps, makeSideSet, isSideSet, syncSideAggregate } from './workout-model.js'
 const objectOf = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -313,14 +314,16 @@ export function bestWeightFor(S, exId) {
  * "is this a rest day?" is `effectiveRoutineIds(S, iso).length === 0`.
  *
  * `S.dayPlan[iso]` stays scalar (a routine id, the `'rest'` sentinel, or undefined): the
- * per-date override and Start-time are single-pick. All array-tolerance is on `S.week`.
+ * per-date override and Start-time are single-pick. All array-tolerance is on the
+ * weekday map. With a two-week cycle that map is `S.week` or `S.weekB` (lib/week-cycle.js).
  */
 export function effectiveRoutineIds(S, iso) {
-  const ov = S.dayPlan[iso]
+  const ov = S.dayPlan?.[iso]
   if (ov === 'rest') return []
   if (ov && S.routines.some(r => r.id === ov)) return [ov]
   const wd = new Date(iso + 'T12:00:00').getDay()
-  return [].concat(S.week[wd] || []).filter(id => S.routines.some(r => r.id === id))
+  const map = scheduleFor(S, iso)
+  return [].concat(map[wd] || []).filter(id => S.routines.some(r => r.id === id))
 }
 export function effectiveRoutines(S, iso) {
   return effectiveRoutineIds(S, iso).map(id => S.routines.find(r => r.id === id)).filter(Boolean)
@@ -335,13 +338,15 @@ export const effectiveRoutine = (S, iso) => effectiveRoutines(S, iso)[0] ?? null
  * A routine with no exercises does not count: starting one lands you in an empty session, so
  * it is not an answer to "what is next" (the same guard TabBar applies before starting). On a
  * combined day, any one routine with exercises makes the day trainable.
- * Returns null when the whole week is rest.
+ * Returns null when nothing is planned in the look-ahead (one week, or both weeks
+ * of a two-week cycle).
  *
  * Return shape carries `routines` (the whole day) plus `routine` = `routines[0]` for the
  * "what's next" label.
  */
 export function nextTrainingDay(S, iso) {
-  for (let i = 1; i <= 7; i++) {
+  const span = cycleOn(S) ? 14 : 7
+  for (let i = 1; i <= span; i++) {
     const d = new Date(iso + 'T12:00:00')
     d.setDate(d.getDate() + i)
     const nextIso = isoOf(d)

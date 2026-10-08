@@ -6,7 +6,7 @@
 // server's RP_ID), so auth here is a short one-time code redeemed from an already signed-in
 // browser tab (Settings → "Pair the mobile app") for a bearer token — see api/server.js's
 // /api/pair/create + /api/pair/redeem.
-import { pairRedeem, setRemoteAuth } from './api.js'
+import { passwordAuth, setRemoteAuth } from './api.js'
 import { loadRemoteFile, saveRemoteFile } from './mobile.js'
 
 // Accepts what someone actually types: bare host, no scheme, trailing slash, stray whitespace.
@@ -38,10 +38,12 @@ export async function forgetRemote() {
 
 // Redeems the pairing code, wires api.js at the resolved base, and persists the connection so
 // boot() can restore it on the next launch.
-export async function connect(rawUrl, code) {
+export async function connect(rawUrl, login, password) {
   const base = normalizeServerUrl(rawUrl)
   if (!base) throw new Error('Enter a valid server address')
-  const { token, user } = await pairRedeem(base, String(code || '').trim())
+  const { token, user } = await passwordAuth(base, '/api/password/login', {
+    login: String(login || '').trim(), password: String(password || '')
+  })
   setRemoteAuth(base, token)
   await saveRemoteFile({ mode: 'remote', base, token, user })
   return user

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { EXIDX, EXDB, smOf } from './exercises.js'
 import {
   MUSCLE_NAME, exerciseMuscleSnapshot, hasExplicitMuscleMetadata, levelsOf, loadOf,
-  loadOfWorkouts, matchesMuscleGroups, muscleBalanceWindow, muscleGroupsOf, musclesOf, rankOf
+  loadOfWeekPlan, loadOfWorkouts, matchesMuscleGroups, muscleBalanceWindow, muscleGroupsOf, musclesOf, rankOf
 } from './muscles.js'
 
 describe('multi-muscle exercise metadata', () => {
@@ -49,12 +49,25 @@ describe('multi-muscle exercise metadata', () => {
   })
 })
 
+describe('deltoid heads', () => {
+  it('splits a generic shoulder into front, side and rear from the exercise name', () => {
+    expect(musclesOf({ n: 'dumbbell lateral raise', bp: 'shoulders', tg: 'delts' })).toEqual({ 'side-deltoid': 1 })
+    expect(musclesOf({ n: 'dumbbell front raise', bp: 'shoulders', tg: 'delts' })).toEqual({ 'front-deltoid': 1 })
+    expect(musclesOf({ n: 'dumbbell reverse fly', bp: 'shoulders', tg: 'delts' })).toEqual({ 'rear-deltoid': 1 })
+    expect(musclesOf({ n: 'dumbbell shoulder press', bp: 'shoulders', tg: 'delts' })).toEqual({
+      'front-deltoid': 1, 'side-deltoid': 1,
+    })
+    expect(musclesOf({ n: 'barbell bench press', bp: 'chest', tg: 'pectorals', sm: ['deltoids'] })['front-deltoid']).toBe(0.4)
+    expect(musclesOf({ n: 'barbell bench press', bp: 'chest', tg: 'pectorals', sm: ['deltoids'] })['side-deltoid']).toBeUndefined()
+  })
+})
+
 describe('catalogue secondary muscles', () => {
   it('maps a bench press to chest, triceps and deltoids', () => {
     expect(musclesOf(EXIDX['0025'])).toMatchObject({
       chest: 1,
       triceps: 0.4,
-      deltoids: 0.4,
+      'front-deltoid': 0.4,
     })
   })
 
@@ -71,7 +84,7 @@ describe('catalogue secondary muscles', () => {
       expect(musclesOf(EXIDX[id])).toMatchObject({
         'upper-back': 1,
         biceps: 0.4,
-        deltoids: 0.4,
+        'front-deltoid': 0.4,
       })
     }
   })
@@ -83,8 +96,8 @@ describe('catalogue secondary additions', () => {
     const raw = EXDB.find(e => e.id === '0027')
     expect(raw.sm).not.toContain('rear deltoids')
     expect(smOf(raw)).toContain('rear deltoids')
-    // the alias collapses onto the deltoids slug in the canonical muscle map
-    expect(musclesOf(raw)).toHaveProperty('deltoids')
+    expect(musclesOf(raw)).toHaveProperty('rear-deltoid')
+    expect(musclesOf(raw)).not.toHaveProperty('front-deltoid')
   })
 })
 
@@ -95,8 +108,8 @@ describe('explicit multi-primary metadata', () => {
       bp: 'chest', tg: 'abs', mg: 'triceps', sm: ['lower back'],
       primaries: ['chest', 'triceps', 'chest'], secondaries: ['deltoids', 'triceps']
     }
-    expect(muscleGroupsOf(ex)).toEqual(['chest', 'triceps', 'deltoids'])
-    expect(musclesOf(ex)).toEqual({ chest: 1, triceps: 1, deltoids: 0.4 })
+    expect(muscleGroupsOf(ex)).toEqual(['chest', 'triceps', 'front-deltoid'])
+    expect(musclesOf(ex)).toEqual({ chest: 1, triceps: 1, 'front-deltoid': 0.4 })
   })
 
   it('keeps the body-part fallback when primaries are absent or explicitly empty', () => {
@@ -198,15 +211,15 @@ describe('muscle balance windows and ranking', () => {
   })
 
   it('uses relative levels and canonical order to break load ties', () => {
-    const load = { chest: 2, deltoids: 2, biceps: 1 }
-    expect(rankOf(load).worked).toEqual(['deltoids', 'chest', 'biceps'])
-    expect(levelsOf(load)).toMatchObject({ deltoids: 4, chest: 4, biceps: 2, abs: 0 })
+    const load = { chest: 2, 'front-deltoid': 2, biceps: 1 }
+    expect(rankOf(load).worked).toEqual(['front-deltoid', 'chest', 'biceps'])
+    expect(levelsOf(load)).toMatchObject({ 'front-deltoid': 4, chest: 4, biceps: 2, abs: 0 })
   })
 
   it('keeps catalogue precedence and deleted-custom snapshot weights', () => {
     const known = { id: '0025', muscleGroups: ['quadriceps'], sets: [{ done: true }] }
     const deleted = { id: 'deleted', muscleSnapshot: { muscleWeights: { chest: 1 } }, sets: [{ done: true }] }
-    expect(loadOfWorkouts([{ entries: [known] }])).toEqual({ chest: 1, triceps: 0.4, deltoids: 0.4, biceps: 0.4 })
+    expect(loadOfWorkouts([{ entries: [known] }])).toEqual({ chest: 1, triceps: 0.4, 'front-deltoid': 0.4, biceps: 0.4 })
     expect(loadOfWorkouts([{ entries: [deleted] }])).toEqual({ chest: 1 })
   })
 })
@@ -214,6 +227,26 @@ describe('muscle balance windows and ranking', () => {
 // MUSCLE_NAME values are the i18n keys — a value no pack defines renders English in every
 // language. The Library list showed "Cardiovascular system" untranslated for every cardio
 // exercise (QA copy): the packs only ever had the dataset's own lowercase spelling.
+describe('loadOfWeekPlan', () => {
+  const chest = { id: 'ex', sets: 3, muscleWeights: { chest: 1, triceps: 0.5 } }
+  it('shades the current week and skips the other week of a cycle', () => {
+    const S = {
+      weekStart: 1,
+      weekCycle: 2,
+      weekAnchor: '2026-09-21',
+      week: { 1: ['r1'] },
+      weekB: { 1: ['r2'] },
+      routines: [
+        { id: 'r1', ex: [chest] },
+        { id: 'r2', ex: [{ id: 'ex2', sets: 4, muscleWeights: { quadriceps: 1 } }] },
+      ],
+    }
+    expect(loadOfWeekPlan(S, '2026-09-21').chest).toBe(3)
+    expect(loadOfWeekPlan(S, '2026-09-21').quadriceps).toBeUndefined()
+    expect(loadOfWeekPlan(S, '2026-09-28').quadriceps).toBe(4)
+  })
+})
+
 describe('MUSCLE_NAME as i18n keys', () => {
   const packs = import.meta.glob('../locales/*.js', { eager: true })
   it('every display name is a key in every locale pack', () => {
