@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RoutineEdit from './RoutineEdit.jsx'
 import { DEF, useStore } from '../store/useStore.js'
 import { _setLangState } from '../lib/i18n-core.js'
-import de from '../locales/de.js'
+import ru from '../locales/ru.js'
 import { buildPlanBundle, parsePlan } from '../lib/plan-share.js'
 
 const cssSource = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
@@ -182,12 +182,12 @@ describe('routine move controls', () => {
   })
 
   it('uses localized accessible names and titles, retains button focus, and does not open config', () => {
-    _setLangState('de', de, null, null)
+    _setLangState('ru', ru, null, null)
     setRoutine([entry('c1', 10), entry('c2', 20)])
     renderRoutine()
-    const button = moveButton('c2', 'Nach oben')
+    const button = moveButton('c2', 'Переместить вверх')
 
-    expect(button.title).toBe('Nach oben')
+    expect(button.title).toBe('Переместить вверх')
     button.focus()
     act(() => button.click())
 

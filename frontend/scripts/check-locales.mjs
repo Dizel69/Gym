@@ -31,8 +31,9 @@ for (const file of files) {
   locales.set(file.replace(/\.js$/, ''), new Set(Object.keys(dict)))
 }
 
-// How many locales carry each key — 1 means the key was added to a single file only,
-// which is the usual shape of the bug and worth naming separately from plain gaps.
+// How many locales carry each key. A key that exists in only one pack is the usual
+// shape of a missed translation — but only when there is another pack to compare
+// with. One locale has nothing to fall out of step with.
 const seen = new Map()
 for (const keys of locales.values()) for (const k of keys) seen.set(k, (seen.get(k) || 0) + 1)
 const union = [...seen.keys()]
@@ -40,7 +41,7 @@ const union = [...seen.keys()]
 let failed = false
 for (const [lang, keys] of locales) {
   const missing = union.filter(k => !keys.has(k))
-  const orphans = union.filter(k => keys.has(k) && seen.get(k) === 1)
+  const orphans = locales.size < 2 ? [] : union.filter(k => keys.has(k) && seen.get(k) === 1)
   if (missing.length || orphans.length) {
     failed = true
     console.error(`\n${lang}.js: ${keys.size}/${union.length} keys`)

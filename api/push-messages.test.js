@@ -2,20 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dayReminderPush, restTimerPush, testPush } from './push-messages.js';
 
-test('localizes every server-generated notification in pt-BR', () => {
-  assert.deepEqual(restTimerPush('pt-BR'), {
-    title: 'Descanso terminado 💪',
-    body: 'Hora da próxima série.',
+test('localizes every server-generated notification in Russian', () => {
+  assert.deepEqual(restTimerPush('ru'), {
+    title: 'Отдых закончился 💪',
+    body: 'Пора на следующий подход.',
     tag: 'rest-timer',
   });
-  assert.deepEqual(testPush('pt-BR'), {
+  assert.deepEqual(testPush('ru'), {
     title: 'openGym',
-    body: 'Notificação de teste ✅ — é assim que os alertas aparecem.',
+    body: 'Тестовое уведомление ✅ — так выглядят оповещения.',
     tag: 'test',
   });
-  assert.deepEqual(dayReminderPush('pt-BR', { name: 'Treino A', emoji: '💪' }), {
-    title: '💪 Treino A hoje',
-    body: 'Está no seu plano — vamos treinar 💪',
+  assert.deepEqual(dayReminderPush('ru', { name: 'Тренировка A', emoji: '💪' }), {
+    title: '💪 Тренировка A сегодня',
+    body: 'Она в плане — поехали 💪',
     tag: 'day-reminder',
   });
 });

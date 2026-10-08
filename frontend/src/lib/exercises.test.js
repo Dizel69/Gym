@@ -84,7 +84,7 @@ describe('matchExercise', () => {
   })
 
   it('matches translated UI terms when a language is active', () => {
-    _setLangState('pt', {
+    _setLangState('ru', {
       chest: 'peito',
       barbell: 'barra',
       dumbbell: 'halteres',
@@ -98,11 +98,10 @@ describe('matchExercise', () => {
     expect(matchExercise(lateralRaise, 'halteres ombros')).toBe(true)
   })
 
-  // The pt-BR exercise-name pack (!16) renames the catalogue in the UI. Searching has to reach
-  // that name as well as the canonical English one, or the library goes dark for pt-BR profiles
-  // the moment they type what they see on screen.
+  // A translated name pack renames the catalogue in the UI. Searching has to reach
+  // that name as well as the canonical English one.
   it('matches the localized exercise name as well as the English one', () => {
-    _setLangState('pt-BR', {}, null, { '0025': 'supino reto com barra' })
+    _setLangState('ru', {}, null, { '0025': 'supino reto com barra' })
 
     expect(matchExercise(benchPress, 'supino')).toBe(true)
     expect(matchExercise(benchPress, 'supino barra')).toBe(true)
@@ -111,7 +110,7 @@ describe('matchExercise', () => {
   })
 
   it('rebuilds the cached haystack when the language changes', () => {
-    _setLangState('pt-BR', {}, null, { '0025': 'supino reto com barra' })
+    _setLangState('ru', {}, null, { '0025': 'supino reto com barra' })
     expect(matchExercise(benchPress, 'supino')).toBe(true)
 
     _setLangState('en', null, null, null)
