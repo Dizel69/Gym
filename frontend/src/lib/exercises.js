@@ -1,4 +1,5 @@
 import { EXDB } from './exercises-data.js'
+import { KETTLEBELL_EXTRA } from './kettlebell-extra.js'
 import { USER_EXERCISE_MUSCLE_OVERRIDES, exerciseMuscleMetadataFor } from './exercise-muscle-batch-1.js'
 import { t, getVersion, exerciseNameSearchText } from './i18n-core.js'
 
@@ -22,7 +23,7 @@ const catalogueExercise = ex => {
   return out
 }
 
-export const CATALOGUE = EXDB.map(catalogueExercise)
+export const CATALOGUE = [...EXDB.map(catalogueExercise), ...KETTLEBELL_EXTRA.map(catalogueExercise)]
 
 // The generated dataset already supplies secondary muscles for most exercises. Keep the
 // handful of conservative catalogue additions that are useful to the muscle map here so a
@@ -132,8 +133,13 @@ export function matchesExerciseSearch(exercise, query) {
 const ENV = import.meta.env || {}
 const IMG_BASE = ENV.VITE_IMG_BASE || 'img/'
 const GIF_BASE = ENV.VITE_GIF_BASE || 'gif/'
-export const imgSrc = ex => IMG_BASE + ex.img
-export const gifSrc = ex => GIF_BASE + ex.gif
+// Catalogue files live under img/ and gif/. A path that already starts at the
+// site root (the kettlebell stills shipped in public/) must not be prefixed.
+const mediaSrc = (base, file) => !file ? ''
+  : (file.startsWith('/') || /^https?:\/\//.test(file)) ? file
+  : base + file
+export const imgSrc = ex => mediaSrc(IMG_BASE, ex?.img)
+export const gifSrc = ex => mediaSrc(GIF_BASE, ex?.gif)
 
 // Cardio exercises log time + speed instead of weight × reps.
 export const isCardio = idOrEx => (typeof idOrEx === 'string' ? EXIDX[idOrEx] : idOrEx)?.bp === 'cardio'

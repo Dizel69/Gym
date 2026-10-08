@@ -11,8 +11,8 @@ describe('Russian exercise names', () => {
   afterEach(() => _setLangState('en', {}, null, null))
 
   test('covers every built-in exercise', () => {
-    expect(Object.keys(ru)).toHaveLength(EXDB.length)
     expect(ru).toEqual(source)
+    for (const exercise of EXDB) expect(ru, exercise.id).toHaveProperty(exercise.id)
     expect(EXERCISE_NAME_LANGS).toContain('ru')
   })
 
