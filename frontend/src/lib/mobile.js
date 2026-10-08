@@ -20,7 +20,8 @@ export const MOBILE = import.meta.env.VITE_MOBILE === '1'
 // web build. On anything but a native Android shell this must stay off.
 //
 // @capacitor/core is imported dynamically (like every other Capacitor dependency here) so it
-// never lands in the web bundle. Capacitor.getPlatform() returns 'android' | 'ios' | 'web'.
+// never lands in the web bundle. Capacitor.getPlatform() returns 'android' | 'ios' | 'web';
+// this fork only ships the Android shell.
 export async function isAndroid() {
   if (!MOBILE) return false
   try {
@@ -184,9 +185,8 @@ export async function shareExport(json, filename) {
 
 // Hand a self-contained HTML document (lib/plan-share.js planPrintHTML) to the OS print flow.
 // Android routes it through the system PrintManager — "Save as PDF", "Save to Drive", a real
-// printer; iOS through the print sheet — "Save to Files" (as PDF), share, print. Either way the
-// platform renders the PDF, so no PDF library rides in the bundle. The local `Print` plugin is
-// registered natively (android MainActivity, ios PrintPlugin.m); on the web build this file's
+// printer. The platform renders the PDF, so no PDF library rides in the bundle. The local
+// `Print` plugin is registered natively in android MainActivity; on the web build this file's
 // callers gate on MOBILE and never reach here.
 export async function printHtml(html, name) {
   const { registerPlugin } = await import('@capacitor/core')

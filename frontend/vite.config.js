@@ -50,9 +50,15 @@ const swStamp = {
 // package.json so it cannot drift from the release it was built in, and inlined at build
 // time so no runtime fetch is involved.
 const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+// CI sets this to the GitHub Actions run number. The phone compares it with the
+// apk-<run> release tag. A local build is 0, so it is never treated as published.
+const buildNumber = process.env.BUILD_NUMBER || '0'
 
 export default defineConfig({
-  define: { __APP_VERSION__: JSON.stringify(pkgVersion) },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+    __BUILD_NUMBER__: JSON.stringify(buildNumber),
+  },
   plugins: [react(), umami, swStamp],
   base: './',
   server: {

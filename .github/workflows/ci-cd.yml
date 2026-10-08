@@ -299,6 +299,8 @@ jobs:
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
       - name: Build the mobile bundle
         working-directory: frontend
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           npm ci
           npm run build:mobile

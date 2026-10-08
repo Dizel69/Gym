@@ -6,21 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 openGym is a self-hosted gym & body-weight tracker PWA. Two containers (`api` + `web`) plus a
 `./data` folder the user owns — no third-party account, no telemetry. Passkey (WebAuthn) login,
-installable as a home-screen app, optional Capacitor shells for standalone Android/iOS builds.
+installable as a home-screen app, plus a Capacitor shell for a standalone Android build.
 License: AGPL-3.0-or-later.
 
 ## Project layout
 
 ```
 frontend/  React 19 + Vite app (src/views, src/components, src/store, src/lib). Builds to static files.
-           android/ + ios/ are the Capacitor shells for the standalone mobile app (docs/MOBILE.md).
+           android/ is the Capacitor shell for the standalone Android app (docs/MOBILE.md).
 api/       backend — server.js (Node, no framework), deps: @simplewebauthn/server, web-push.
 web/       multi-stage Dockerfile (builds frontend → nginx) + nginx.conf.template (serves app, proxies /api).
 mcp/       optional MCP server — read-only stdio bridge exposing a user's workouts/1RM/muscle
            balance to LLM clients (Claude Desktop, Cursor…). Not part of the Docker build; only
            runs when an LLM client spawns it.
 media/     exercise img/gif, gitignored, fetched at runtime by the `media` compose service.
-website/   static marketing site (plain HTML/CSS/JS), deployed separately by .gitlab-ci.yml.
 docs/      SELF_HOSTING.md, MOBILE.md.
 ```
 
@@ -51,11 +50,9 @@ cd frontend && npm run build:mobile   # + cap sync, points media at the CDN data
 There is no linter/formatter configured (no ESLint/Prettier config in the repo) and no
 TypeScript — match the existing style by hand.
 
-The CI gate is `.gitlab-ci.yml` on GitLab, the canonical remote (see README): it runs the
-`frontend/` tests on Node 22 — the same version as `web/Dockerfile` / `api/Dockerfile`
-(`node:22-alpine`) — and additionally builds and publishes the Docker images, packages the
-signed Android APK, and deploys the demo/docs site. The Gitea and GitHub workflow copies
-(`.gitea/workflows/`, `.github/workflows/`) are dormant mirrors; neither host runs them.
+The CI that runs is `.github/workflows/ci-cd.yml` on a push to `main`: the `frontend/` tests
+on Node 22 — the same version as `web/Dockerfile` / `api/Dockerfile` (`node:22-alpine`) —
+a signed Android APK, and a deploy of the server. Pull requests run `.github/workflows/test.yml`.
 
 ## Architecture
 
@@ -83,8 +80,8 @@ signed Android APK, and deploys the demo/docs site. The Gitea and GitHub workflo
   Admin, Login, RoutineEdit), routed by `react-router-dom` from `App.jsx`.
 - **`components/`** — shared UI (charts, modals, timers); `instr/` holds per-language exercise
   instruction text; `locales/` is the i18n string catalogue (`lib/i18n.js` / `i18n-core.js`).
-- Mobile: `@capacitor/*` wraps the same web build into native shells under `frontend/android` and
-  `frontend/ios` (see `docs/MOBILE.md`); `mobile.js` in `lib/` gates native-only behavior (file
+- Mobile: `@capacitor/*` wraps the same web build into the native shell under `frontend/android`
+  (see `docs/MOBILE.md`); `mobile.js` in `lib/` gates native-only behavior (file
   persistence, local notifications, wake lock) behind a `MOBILE` flag.
 
 ### API (`api/server.js`)

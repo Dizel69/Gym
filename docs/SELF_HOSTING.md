@@ -8,17 +8,15 @@ This guide takes you from "just cloned it" to "using it from my phone over the i
 Requirements: [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
 
 ```bash
-git clone https://github.com/DuarteSantos8/openGym   # or https://gitlab.com/DuarteSantos8/opengym — same repo
-cd openGym
+git clone https://github.com/Dizel69/Gym
+cd Gym
 cp .env.example .env
-docker compose pull   # prebuilt images from GitLab's registry (amd64 + arm64; the same images are on ghcr.io) — or skip and build from source
-docker compose up -d
+docker compose up -d --build
 ```
 
 - First start downloads the exercise images/GIFs (~140 MB) once into `media/img` and `media/gif`.
 - Open **http://localhost:8080** and create a profile with a passkey.
-- Rather build from source than pull prebuilt images? Skip `docker compose pull` and run
-  `docker compose up -d --build` instead — no Node needed locally either way.
+- The images are built from this repository. Node is not required on the server.
 
 Check it's healthy:
 

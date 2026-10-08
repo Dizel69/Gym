@@ -9,7 +9,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 // The updater downloads an .apk and hands it to the Android package installer, so its row
 // may only ever show on the native Android build: never on the web, never on iOS. Each test
 // flips the two gates (MOBILE flag, Capacitor platform) and watches whether Settings even
-// asks gitlab.com for the latest release.
+// asks GitHub for the latest release.
 const mocks = vi.hoisted(() => {
   const state = { S: null, MOBILE: false, android: false }
   state.snapshot = () => ({
@@ -133,7 +133,7 @@ describe('Settings — in-app update check', () => {
     expect(updateRow()).toBeTruthy()   // the second (default) answer had 9.9.9 — the row now offers it
   })
 
-  it('Android when gitlab.com is unreachable: stays quiet, keeps the row', async () => {
+  it('Android when GitHub is unreachable: stays quiet, keeps the row', async () => {
     mocks.MOBILE = true
     mocks.android = true
     mocks.checkForUpdate.mockRejectedValueOnce(new Error('offline'))
