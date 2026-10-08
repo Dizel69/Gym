@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <div align="center">
 
 <img src="assets/banner.png" alt="openGym" width="720">
@@ -303,3 +304,6 @@ at first run) and does not relicense them. To reuse that media yourself, clear i
 holder first.
 
 Full third-party notices, including the body-diagram geometry: **[NOTICE.md](NOTICE.md)**.
+=======
+# Gym
+>>>>>>> origin/main
