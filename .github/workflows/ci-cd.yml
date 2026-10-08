@@ -1,0 +1,332 @@
+# Push to main: tests, then update the site already running in ~/openGym.
+# The graph matches the other project: check the commit, check secrets, test,
+# send the code, rebuild, then ask the site if it is up.
+#
+# Secrets already stored on the repository (Settings → Secrets → Actions):
+#   SSH_HOST, SSH_USER, SSH_PRIVATE_KEY
+#   ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS
+#
+# The deploy only runs `docker compose up -d --build` in ~/openGym.
+# It does not stop other compose projects, and it leaves .env and ./data alone.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  parse_commit:
+    name: Parse commit and changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.parse.outputs.should_build }}
+      needs_deploy: ${{ steps.parse.outputs.needs_deploy }}
+      run_tests: ${{ steps.parse.outputs.run_tests }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse commit title and changed files
+        id: parse
+        env:
+          COMMIT_TITLE: ${{ github.event.head_commit.message }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          FIRST_LINE="$(printf '%s\n' "$COMMIT_TITLE" | sed -n '1p')"
+          FIRST_LINE_LOWER="$(printf '%s' "$FIRST_LINE" | tr '[:upper:]' '[:lower:]')"
+
+          should_build=true
+          needs_deploy=false
+          run_tests=false
+
+          if printf '%s' "$FIRST_LINE_LOWER" | grep -Eq '^docs($|[:(])'; then
+            should_build=false
+            echo "Commit starts with docs, build is skipped."
+          else
+            echo "Commit does not start with docs, path filters will decide what to deploy."
+
+            SHA="${{ github.sha }}"
+            if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              CHANGED="$(git diff-tree --no-commit-id --name-only -r "$SHA")"
+            elif git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              CHANGED="$(git diff --name-only "$BEFORE" "$SHA")"
+            else
+              CHANGED="$(git diff-tree --no-commit-id --name-only -r "$SHA")"
+            fi
+
+            echo "Changed files:"
+            printf '%s\n' "$CHANGED"
+
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              case "$file" in
+                *.md|.gitignore|LICENSE|NOTICE.md)
+                  ;;
+                *)
+                  needs_deploy=true
+                  run_tests=true
+                  ;;
+              esac
+            done <<< "$CHANGED"
+          fi
+
+          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
+          echo "needs_deploy=$needs_deploy" >> "$GITHUB_OUTPUT"
+          echo "run_tests=$run_tests" >> "$GITHUB_OUTPUT"
+
+          echo "should_build=$should_build"
+          echo "needs_deploy=$needs_deploy"
+          echo "run_tests=$run_tests"
+
+  secrets_check:
+    name: Secrets / env sanity check
+    runs-on: ubuntu-latest
+    needs: parse_commit
+    if: ${{ needs.parse_commit.outputs.needs_deploy == 'true' }}
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - name: Verify required deploy secrets are set
+        run: |
+          missing=""
+          for var in SSH_HOST SSH_USER SSH_PRIVATE_KEY; do
+            eval "val=\$$var"
+            if [ -z "$val" ]; then
+              missing="$missing $var"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing or empty GitHub secrets:$missing"
+            exit 1
+          fi
+          echo "All required deploy secrets are present."
+
+  compose_validate:
+    name: Docker Compose config validation
+    runs-on: ubuntu-latest
+    needs: parse_commit
+    if: ${{ needs.parse_commit.outputs.needs_deploy == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create CI env file
+        run: touch .env
+
+      - name: Validate compose configuration
+        run: docker compose config --quiet
+
+  frontend_tests:
+    name: Run frontend tests
+    runs-on: ubuntu-latest
+    needs: parse_commit
+    if: ${{ needs.parse_commit.outputs.run_tests == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
+
+  transfer:
+    name: Transfer code to server
+    runs-on: ubuntu-latest
+    needs: [parse_commit, secrets_check, compose_validate, frontend_tests]
+    if: >
+      always()
+      && needs.parse_commit.result == 'success'
+      && needs.parse_commit.outputs.needs_deploy == 'true'
+      && needs.secrets_check.result == 'success'
+      && needs.compose_validate.result == 'success'
+      && (needs.frontend_tests.result == 'success' || needs.frontend_tests.result == 'skipped')
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - name: Fetch the new commit on the server
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/gym_deploy
+          chmod 600 ~/.ssh/gym_deploy
+          ssh -i ~/.ssh/gym_deploy -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SSH_HOST}" bash -s << 'EOF'
+          set -euo pipefail
+          dir="$HOME/openGym"
+          if [ ! -d "$dir/.git" ]; then
+            git clone --branch main https://github.com/Dizel69/Gym.git "$dir"
+          fi
+          cd "$dir"
+          if [ ! -f .env ]; then
+            echo "Нет .env в $dir. Файл с RP_ID и ORIGIN должен уже лежать на сервере."
+            exit 1
+          fi
+          if git remote get-url origin >/dev/null 2>&1; then
+            git remote set-url origin https://github.com/Dizel69/Gym.git
+          else
+            git remote add origin https://github.com/Dizel69/Gym.git
+          fi
+          git fetch origin main
+          git checkout -f -B main origin/main
+          echo "Code on the server is $(git rev-parse --short HEAD)."
+          EOF
+
+  deploy_app:
+    name: Build and restart app
+    runs-on: ubuntu-latest
+    needs: [parse_commit, transfer]
+    if: >
+      always()
+      && needs.parse_commit.outputs.needs_deploy == 'true'
+      && needs.transfer.result == 'success'
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - name: Rebuild the openGym containers
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/gym_deploy
+          chmod 600 ~/.ssh/gym_deploy
+          ssh -i ~/.ssh/gym_deploy -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SSH_HOST}" bash -s << 'EOF'
+          set -euo pipefail
+          cd "$HOME/openGym"
+          echo "Rebuilding api and web. Other compose projects are not touched."
+          docker compose up -d --build
+          docker compose ps
+          EOF
+
+  smoke_app:
+    name: Post-deploy app smoke test
+    runs-on: ubuntu-latest
+    needs: [parse_commit, deploy_app]
+    if: >
+      always()
+      && needs.parse_commit.outputs.needs_deploy == 'true'
+      && needs.deploy_app.result == 'success'
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    steps:
+      - name: Check /api/health on the server
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/gym_deploy
+          chmod 600 ~/.ssh/gym_deploy
+          ssh -i ~/.ssh/gym_deploy -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SSH_HOST}" bash -s << 'EOF'
+          set -euo pipefail
+          cd "$HOME/openGym"
+          port=8080
+          if [ -f .env ]; then
+            val="$(grep -E '^WEB_PORT=' .env | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'")"
+            [ -n "$val" ] && port="$val"
+          fi
+          url="http://127.0.0.1:${port}/api/health"
+          for attempt in $(seq 1 30); do
+            if body="$(curl -fsS --max-time 5 "$url" 2>/dev/null)" && printf '%s' "$body" | grep -q '"ok":true'; then
+              echo "site is up (attempt $attempt): $body"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::site did not become ready at $url"
+          docker compose ps || true
+          docker compose logs --tail 80 api web || true
+          exit 1
+          EOF
+
+  apk:
+    name: Build signed APK
+    runs-on: ubuntu-latest
+    needs: [parse_commit, frontend_tests]
+    if: >
+      always()
+      && needs.parse_commit.result == 'success'
+      && needs.frontend_tests.result == 'success'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Build the mobile bundle
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build:mobile
+      - name: Assemble and sign the APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -eu
+          if [ -z "${ANDROID_KEYSTORE_B64:-}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ] || [ -z "${ANDROID_KEY_ALIAS:-}" ]; then
+            echo "::error::Add repository secrets ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          cd frontend/android
+          VC=$((1000 + ${GITHUB_RUN_NUMBER:-1}))
+          ./gradlew --no-daemon assembleRelease -PversionCodeOverride="$VC"
+          UNSIGNED=app/build/outputs/apk/release/app-release-unsigned.apk
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.jks" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --out "$GITHUB_WORKSPACE/gym.apk" \
+            "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --print-certs "$GITHUB_WORKSPACE/gym.apk"
+          sha256sum "$GITHUB_WORKSPACE/gym.apk" | tee "$GITHUB_WORKSPACE/gym.apk.sha256"
+          rm -f "$RUNNER_TEMP/release.jks"
+      - name: Publish the APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release create "apk-${GITHUB_RUN_NUMBER}" gym.apk gym.apk.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "APK ${GITHUB_RUN_NUMBER}" \
+            --notes "Signed build from ${GITHUB_SHA}. Install gym.apk on the phone. The next build installs over this one only while the same keystore is used." \
+            --latest

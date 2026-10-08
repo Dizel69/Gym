@@ -16,6 +16,7 @@ export const auditCat = ev => String(ev || '').split('.')[0]
 const LABELS = {
   'auth.login.ok': 'Signed in',
   'auth.login.fail': 'Sign-in failed',
+  'auth.setup.ok': 'Created the first account',
   'auth.register.ok': 'Created a profile',
   'auth.register.fail': 'Profile creation failed',
   'auth.register.denied': 'Signup refused',
@@ -26,6 +27,7 @@ const LABELS = {
   'auth.pair.create': 'Created a pairing code',
   'auth.pair.ok': 'Paired a phone',
   'auth.pair.fail': 'Pairing failed',
+  'admin.user.create': 'Created a user',
   'admin.user.disable': 'Disabled an account',
   'admin.user.enable': 'Re-enabled an account',
   'admin.user.delete': 'Deleted an account',
@@ -45,6 +47,7 @@ const REASONS = {
   'not-verified': 'the passkey was rejected',
   'user-missing': 'the passkey points at a profile that no longer exists',
   'account-disabled': 'the account is disabled',
+  'bad-password': 'wrong login or password',
   'credential-exists': 'that passkey already belongs to a profile',
   'invite-invalid': 'the invite code was used or revoked in the meantime',
   'invite-rejected': 'wrong or already-used invite code',

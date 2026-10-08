@@ -2,18 +2,9 @@
 # contributed changes used to reach main without anything ever having been run.
 name: Tests
 
+# Push to main is tested inside ci-cd.yml. This suite still runs on pull requests.
 on:
   pull_request:
-    paths:
-      - 'frontend/**'
-      - 'api/**'
-      - 'mcp/**'
-      - 'scripts/build-coach-assets.mjs'
-      - 'scripts/build-coach-library.mjs'
-      - 'api/coach/prompts/**'
-      - '.github/workflows/test.yml'
-  push:
-    branches: [main, coach]
     paths:
       - 'frontend/**'
       - 'api/**'

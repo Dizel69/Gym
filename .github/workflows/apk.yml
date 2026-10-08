@@ -14,9 +14,8 @@
 #   SSH_PRIVATE_KEY            private half of a key whose public half is in that user's authorized_keys
 name: Test and APK
 
+# Push to main runs .github/workflows/ci-cd.yml. This file is only a manual APK build.
 on:
-  push:
-    branches: [main, two-week-cycle]
   workflow_dispatch:
 
 permissions:
@@ -101,39 +100,3 @@ jobs:
             --title "APK ${GITHUB_RUN_NUMBER}" \
             --notes "Signed build from ${GITHUB_SHA}. Install gym.apk on the phone. The next build installs over this one only while the same keystore is used." \
             --latest
-
-  deploy:
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Rebuild the site on the server
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -eu
-          if [ -z "${SSH_PRIVATE_KEY:-}" ] || [ -z "${SSH_HOST:-}" ] || [ -z "${SSH_USER:-}" ]; then
-            echo "::error::Add repository secrets SSH_HOST, SSH_USER and SSH_PRIVATE_KEY."
-            exit 1
-          fi
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/gym_deploy
-          chmod 600 ~/.ssh/gym_deploy
-          ssh -i ~/.ssh/gym_deploy -o StrictHostKeyChecking=accept-new "${SSH_USER}@${SSH_HOST}" bash -s << 'EOF'
-          set -eu
-          dir="$HOME/openGym"
-          if [ ! -d "$dir/.git" ]; then
-            git clone --branch main https://github.com/Dizel69/Gym.git "$dir"
-          fi
-          cd "$dir"
-          if [ ! -f .env ]; then
-            echo "Нет .env в $dir. Файл с RP_ID и ORIGIN должен уже лежать на сервере."
-            exit 1
-          fi
-          git remote set-url origin https://github.com/Dizel69/Gym.git
-          git fetch origin main
-          git checkout -f -B main origin/main
-          docker compose up -d --build
-          EOF

@@ -33,9 +33,9 @@ afterEach(() => {
 
 const starterButton = () => [...host.querySelectorAll('button')].find(b => b.textContent === 'Load starter plan')
 
-describe.each([['Home', Home], ['Plan', Plan]])('%s empty state', (_name, View) => {
+describe('Home empty state', () => {
   it('opens the starter plan chooser instead of loading one plan blind', () => {
-    act(() => root.render(<View />))
+    act(() => root.render(<Home />))
     const button = starterButton()
     expect(button).toBeTruthy()
 
@@ -45,7 +45,23 @@ describe.each([['Home', Home], ['Plan', Plan]])('%s empty state', (_name, View) 
 
   it('drops the offer once the user has routines', () => {
     useStore.setState(s => ({ S: { ...s.S, routines: [{ id: 'r', name: 'Mine', emoji: 'star', ex: [] }] } }))
-    act(() => root.render(<View />))
+    act(() => root.render(<Home />))
     expect(starterButton()).toBeFalsy()
+  })
+})
+
+describe('Plan empty state', () => {
+  it('offers an empty complex library instead of a starter plan', () => {
+    act(() => root.render(<Plan />))
+    expect(host.textContent).toContain('No complexes yet.')
+    expect(starterButton()).toBeFalsy()
+    expect(starterPlanSheet).not.toHaveBeenCalled()
+  })
+
+  it('lists a saved complex once one exists', () => {
+    useStore.setState(s => ({ S: { ...s.S, routines: [{ id: 'r', name: 'Mine', emoji: 'star', ex: [] }] } }))
+    act(() => root.render(<Plan />))
+    expect(host.textContent).toContain('Mine')
+    expect(host.textContent).not.toContain('No complexes yet.')
   })
 })

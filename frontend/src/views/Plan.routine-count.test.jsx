@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-// A weekday with one routine read "1 routines" (QA copy): the header formatted the count
-// with the plural key only, although both forms have been in every pack for a long time.
+// Plan is a library of complexes. A weekday header used to count "1 routine" / "2 routines";
+// that schedule is gone, so the list has to show the saved complexes and no day names.
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,13 +48,15 @@ afterEach(() => {
 })
 
 const mount = () => act(() => root.render(<Plan />))
-const countOn = day => [...host.querySelectorAll('.item')].find(el => el.querySelector('.tt')?.textContent === day)?.querySelector('.small.dim')?.textContent
 
-describe('Plan — the day header counts its routines', () => {
-  it('uses the singular for one routine and the plural for more', () => {
+describe('Plan — saved complexes', () => {
+  it('lists each complex and does not lay them out on weekdays', () => {
     mocks.S.week = { 1: ['r1'], 2: ['r1', 'r2'] }
     mount()
-    expect(countOn('Monday')).toBe('1 routine')
-    expect(countOn('Tuesday')).toBe('2 routines')
+    const text = host.textContent
+    expect(text).toContain('Push')
+    expect(text).toContain('Pull')
+    expect(text).not.toContain('Monday')
+    expect(text).not.toContain('1 routine')
   })
 })

@@ -15,10 +15,8 @@
 # api scope, so a leak could push commits but not read variables, tokens or the registry.
 name: Mirror to GitLab
 
+# This fork is not the GitLab mirror. Left manual so a push does not try to update it.
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:

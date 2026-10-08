@@ -10,12 +10,8 @@
 # upstream dataset on jsDelivr instead, pinned to a commit so the CDN can cache it forever.
 name: Deploy demo to GitHub Pages
 
+# The author's GitHub Pages demo is not this fork's site. Left manual.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:

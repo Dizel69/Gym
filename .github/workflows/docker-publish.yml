@@ -10,11 +10,8 @@ name: Publish Docker images
 # to follow main here, and a release run overwrote it as well, so thirteen releases
 # published at once left it pointing at whichever finished last.) Re-running the
 # workflow by hand on a `vX.Y.Z` ref republishes exactly that version's tags.
+# This fork deploys from ci-cd.yml. The author's image publish stays manual.
 on:
-  push:
-    branches: [main]
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
