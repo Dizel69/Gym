@@ -3,7 +3,8 @@
 //
 // CI publishes gym.apk on every push as a release tagged apk-<run>. The number is
 // baked in at build time (__BUILD_NUMBER__), so the phone offers a newer build of
-// this fork, not someone else's release.
+// this fork, not someone else's release. The name shown to the user is the release
+// title, which CI sets from frontend/package.json ("1.4.0"), not the apk-<run> tag.
 // On Android (Capacitor), the APK is downloaded to the cache directory and handed
 // to the system installer via a content:// URI.
 
@@ -34,9 +35,10 @@ async function fetchLatest() {
   const assets = Array.isArray(latest.assets) ? latest.assets : []
   const apk = assets.find(asset => /\.apk$/i.test(asset.name || ''))
   const hash = assets.find(asset => /\.sha256$/i.test(asset.name || ''))
+  const title = typeof latest.name === 'string' ? latest.name.trim() : ''
   return {
     hasUpdate: latestBuild > installed,
-    latestVersion: latestBuild ? String(latestBuild) : __APP_VERSION__,
+    latestVersion: /^\d+\.\d+\.\d+/.test(title) ? title : __APP_VERSION__,
     apkUrl: apk?.browser_download_url || null,
     hashUrl: hash?.browser_download_url || null,
   }

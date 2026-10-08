@@ -49,6 +49,16 @@ describe('multi-muscle exercise metadata', () => {
   })
 })
 
+describe('locomotion', () => {
+  it('counts a brisk walk as leg work and leaves other cardio alone', () => {
+    expect(musclesOf({ n: 'walking', bp: 'cardio', tg: 'cardiovascular system' })).toMatchObject({
+      quadriceps: 1, gluteal: 1, hamstring: 0.6, calves: 0.8,
+    })
+    expect(musclesOf({ n: 'battle rope', bp: 'cardio', tg: 'cardiovascular system' }).quadriceps).toBeUndefined()
+    expect(musclesOf({ n: "farmer's walk", bp: 'upper legs', tg: 'quads' }).hamstring).toBeUndefined()
+  })
+})
+
 describe('deltoid heads', () => {
   it('splits a generic shoulder into front, side and rear from the exercise name', () => {
     expect(musclesOf({ n: 'dumbbell lateral raise', bp: 'shoulders', tg: 'delts' })).toEqual({ 'side-deltoid': 1 })

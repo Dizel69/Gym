@@ -88,6 +88,15 @@ const BY_BODYPART = {
 
 const SECONDARY = 0.4   // a supporting muscle counts this much against a primary
 
+// A logged walk or run is leg work even though the catalogue files it under cardio.
+// One 30-minute session is enough for the quads and glutes to count as fatigued,
+// which is what a brisk commute actually feels like. A short stroll stays under that line.
+function locomotionLegs(ex) {
+  const n = String(ex?.n || ex?.name || '').toLowerCase()
+  if (!/\bwalk|\brunn?ing|\brun\b|\bjog|\bhike|\bstair|\bsprint|\btreadmill|ходьб|пробежк/.test(n)) return null
+  return { quadriceps: 1, gluteal: 1, hamstring: 0.6, calves: 0.8 }
+}
+
 const GENERIC_DELT = new Set(['delts', 'deltoid', 'deltoids', 'shoulders', 'shoulder'])
 
 // The catalogue calls every shoulder "deltoids". The head comes from the name:
@@ -255,6 +264,10 @@ export function musclesOf(ex) {
   }
   // Nothing recognised (custom exercises, or a target we don't draw) — use the body part.
   if (!Object.keys(out).length) Object.assign(out, BY_BODYPART[ex.bp] || {})
+  if (ex.bp === 'cardio') {
+    const legs = locomotionLegs(ex)
+    if (legs) for (const [slug, weight] of Object.entries(legs)) out[slug] = Math.max(out[slug] || 0, weight)
+  }
   return out
 }
 

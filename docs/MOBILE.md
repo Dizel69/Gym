@@ -104,10 +104,10 @@ apksigner sign --ks my.keystore --ks-key-alias opengym --out openGym.apk aligned
 
 ### Release notes for maintainers
 
-- Bump `versionName`/`versionCode` in `android/app/build.gradle` per release; keep them in
-  step with `frontend/package.json`. `versionCode` must strictly increase or updates won't
-  install over an existing APK. The APK is *named* from `frontend/package.json` (the CI job
-  reads `version` out of it), so the two drifting apart shows up as a misnamed file.
+- The name people see (GitHub release title, in-app update, Android version) is
+  `version` in `frontend/package.json`. Change that before a push when the next build
+  should be called something new, for example `1.4.0`. `versionCode` is assigned by CI
+  and must keep increasing or Android will refuse to install over the existing app.
 - A push to `main` runs the tests, deploys the server, and publishes the signed APK.
 - **License:** openGym is AGPL-3.0, which by itself sits badly with app-store terms of
   service. `NOTICE.md` carries an app-store exception (an additional permission under

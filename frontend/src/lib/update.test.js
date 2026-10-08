@@ -39,8 +39,8 @@ describe('checkForUpdate', () => {
     }))
   }
 
-  function release(tag, assets = []) {
-    return { tag_name: tag, assets }
+  function release(tag, assets = [], name = '') {
+    return { tag_name: tag, name, assets }
   }
 
   it('reports no update when the published build is the one installed', async () => {
@@ -58,10 +58,17 @@ describe('checkForUpdate', () => {
   })
 
   it('reports an update when the published build is newer', async () => {
-    mockFetch(release('apk-12'))
+    mockFetch(release('apk-12', [], '1.4.0'))
     const result = await checkForUpdate()
     expect(result.hasUpdate).toBe(true)
-    expect(result.latestVersion).toBe('12')
+    expect(result.latestVersion).toBe('1.4.0')
+  })
+
+  it('shows the installed version when the release title is not a version', async () => {
+    mockFetch(release('apk-12', [], 'APK 12'))
+    const result = await checkForUpdate()
+    expect(result.hasUpdate).toBe(true)
+    expect(result.latestVersion).toBe(__APP_VERSION__)
   })
 
   it('finds the APK and its checksum, and does not confuse the two', async () => {

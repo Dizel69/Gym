@@ -9,6 +9,7 @@ import { bwSheet, goalSheet, calendarSheet, pickDayComplex, workoutDetailSheet, 
 import LineChart from '../components/LineChart.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
+import TodaySuggestion from '../components/TodaySuggestion.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
@@ -107,6 +108,7 @@ export default function Home() {
           {t('Choose a different workout')}
         </Button>
       </div>}
+      <TodaySuggestion S={S} />
     </div>
 
     {/* Jump to the gym check-in cards (QR membership codes). Shown here as a quick tap on

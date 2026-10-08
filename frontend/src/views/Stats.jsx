@@ -12,6 +12,7 @@ import Icon from '../components/Icon.jsx'
 import BodyMap, { BodyMapLegend } from '../components/BodyMap.jsx'
 import { loadOfWorkouts, muscleBalanceWindow, rankOf, MUSCLE_NAME, musclesOf } from '../lib/muscles.js'
 import { fatigueOf, strengthOf, STRENGTH_FLOOR, LB_TO_KG } from '../lib/recovery.js'
+import TodaySuggestion from '../components/TodaySuggestion.jsx'
 import { strengthExerciseRowsForMuscle } from '../lib/strength-exercises.js'
 import { fatigueStateOf } from '../lib/recovery-view.js'
 import { e1rmSeries, best1RM } from '../lib/onerm.js'
@@ -199,6 +200,7 @@ function MuscleBalance({ S }) {
       <BodyMap className="tappable hm-fatigue" load={fatigue} thresholds={FATIGUE_LEVELS} body={S.body} selected={sel} onMuscle={toggleSel} />
       <FatigueLegend />
       <div className="muted small" style={{ marginTop: 10 }}>{t('Fatigue shows how recently each muscle was trained. High means rest.')}</div>
+      <TodaySuggestion S={S} now={now} />
       {sel && <div className="mrow" style={{ borderTop: 'var(--hair) solid var(--sep)', marginTop: 4, paddingTop: 10 }}>
         <span className="nm"><b>{t(MUSCLE_NAME[sel])}</b></span>
         <span className="v">{fatigueLabel(fatigue[sel])}</span>

@@ -87,7 +87,8 @@ jobs:
           echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
           cd frontend/android
           VC=$((1000 + ${GITHUB_RUN_NUMBER:-1}))
-          ./gradlew --no-daemon assembleRelease -PversionCodeOverride="$VC"
+          VERSION="$(node -p "require('$GITHUB_WORKSPACE/frontend/package.json').version")"
+          ./gradlew --no-daemon assembleRelease -PversionCodeOverride="$VC" -PversionNameOverride="$VERSION"
           UNSIGNED=app/build/outputs/apk/release/app-release-unsigned.apk
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           "$BT/zipalign" -f -p 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
@@ -106,8 +107,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
+          VERSION="$(node -p "require('./frontend/package.json').version")"
           gh release create "apk-${GITHUB_RUN_NUMBER}" gym.apk gym.apk.sha256 \
             --target "$GITHUB_SHA" \
-            --title "APK ${GITHUB_RUN_NUMBER}" \
+            --title "$VERSION" \
             --notes "Signed build from ${GITHUB_SHA}. Install gym.apk on the phone. The next build installs over this one only while the same keystore is used." \
             --latest
