@@ -232,7 +232,51 @@ export function entryExcluded(w, entry) {
   return w?.excludeFromProgression === true || entry?.noProg === true
 }
 
-export function lastEntryFor(S, exId) {
+/**
+ * Loaded rep work progresses on its own line per planned rep count: squat 3×8 and squat 3×12
+ * do not share a weight. Time, cardio, assistance machines and bodyweight work stay keyed by
+ * exercise id — assistance has no honest 1RM, and bodyweight progress *is* the rep count.
+ */
+export function splitsByReps(cfg) {
+  if (!cfg || isAssisted(cfg) || isBw(cfg)) return false
+  if (!(Number(cfg.weight) > 0)) return false
+  return modeOf(cfg) === 'reps' && Number(cfg.reps) > 0
+}
+
+function positiveReps(value) {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/** Reps that place a logged entry on a line. Warm-ups never count. */
+export function lineRepsOf(entry, cfg) {
+  const target = entry?.target || {}
+  const stamped = positiveReps(target.repsTop)
+  if (stamped) return stamped
+  const goal = positiveReps(target.reps)
+  const floor = positiveReps(target.repsMin)
+  const top = positiveReps(cfg?.reps)
+  const cfgFloor = positiveReps(cfg?.repsMin)
+  // Double progression's per-session goal moves inside the range. The line is the top.
+  // A saved aim still belongs to this plan when the floor matches and the goal sits inside it.
+  if (goal && floor && cfgFloor && floor === cfgFloor && top && goal >= floor && goal <= top) return top
+  if (goal) return goal
+  const reps = (entry?.sets || [])
+    .filter(s => s && s.done && !isWarmupRow(s))
+    .map(s => Number(s.r) || 0)
+    .filter(r => r > 0)
+  return reps.length ? Math.max(...reps) : null
+}
+
+/** True when `entry` counts for the rep line `cfg` describes. Non-splitting plans match everything. */
+export function entryOnLine(entry, cfg) {
+  if (!splitsByReps(cfg)) return true
+  const got = lineRepsOf(entry, cfg)
+  return got != null && got === Number(cfg.reps)
+}
+
+export function lastEntryFor(S, exId, cfg) {
+  const line = cfg && splitsByReps(cfg) ? cfg : null
   for (let i = S.workouts.length - 1; i >= 0; i--) {
     const w = S.workouts[i]
     const en = w.entries.find(e => e.id === exId)
@@ -241,6 +285,9 @@ export function lastEntryFor(S, exId) {
     // session — is not "last time" for the next regular prescription: its reps and durations
     // must not seed the rows any more than its weight seeds the progression.
     if (entryExcluded(w, en)) continue
+    // A different rep target is a different line. Callers that pass no plan still see the
+    // latest session of the exercise, which is what "last time" on the exercise page means.
+    if (line && !entryOnLine(en, line)) continue
     // Work sets only. Every caller asks the same question — "what did you actually lift last
     // time" — to seed the next session's rows, to size a freestyle config, and to print "Last
     // time" on the card. A warm-up answers none of them: seeding position 0 from a 50% ramp row
@@ -386,7 +433,10 @@ function buildWorkSets(S, cfg, options = {}) {
   // `lastEntryFor` now skips any entry that does not count — a planned deload, or a rehab
   // block merged into a real session (entryExcluded) — so the rows seed from the last
   // *counting* session without this function pre-filtering the history itself.
-  const last = lastEntryFor(S, cfg.id)
+  // Planned loaded work also skips other rep lines. Freestyle (`preferLast`) still reproduces
+  // the latest session of the exercise, whichever target it was.
+  const split = splitsByReps(cfg)
+  const last = lastEntryFor(S, cfg.id, !preferLast && split ? cfg : null)
   const n = Math.max(1, cfg.sets || 1)
   const mode = modeOf(cfg)
   const sets = []
@@ -423,11 +473,16 @@ function buildWorkSets(S, cfg, options = {}) {
     const w = useTarget
       ? (cfg.weight > 0 ? cfg.weight : (lastRegular && lastRegular.r > 0 ? lastRegular.w : cfg.weight))
       : preferLast && usable ? usable.w : (conf && conf.w > 0 ? conf.w : (usable ? usable.w : cfg.weight))
-    const row = { w, r: usable ? usable.r : cfg.reps, done: false }
+    // A different rep line has already been dropped, so it cannot paint its reps here.
+    // On this line, freestyle and unsplit work (assisted, bodyweight) still reproduce the
+    // logged reps set by set. A planned line opens at cfg.reps — linear progression often
+    // leaves reps unset, and the other scheme's count used to stick.
+    const copyLoggedReps = !!usable && (preferLast || !split)
+    const row = { w, r: copyLoggedReps ? usable.r : cfg.reps, done: false }
     // A unilateral exercise logs each side on its own (issue #60): the row splits into L/R,
     // each seeded with half the total reps at the same weight. When "last time" was itself a
     // per-side set, carry its two sides over verbatim so an asymmetry you logged persists.
-    if (isPerSide(cfg)) sets.push(usable && isSideSet(usable) ? seedSideFromLast(row, usable) : makeSideSet(row))
+    if (isPerSide(cfg)) sets.push(usable && isSideSet(usable) && copyLoggedReps ? seedSideFromLast(row, usable) : makeSideSet(row))
     else sets.push(row)
   }
   return sets

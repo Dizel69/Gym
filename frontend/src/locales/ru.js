@@ -630,6 +630,7 @@ export default {
   'Work up through a rep range at the same weight. Reach the top of the range in every set and the weight goes up, reps back to the bottom.': 'Растёшь в диапазоне повторений на одном весе. Достиг верхней границы во всех подходах — вес растёт, а повторения возвращаются к нижней.',
   'Hold every set for the full duration and the target goes up.': 'Держишь каждый подход всё время — цель растёт.',
   'Nothing logged yet — this session sets the baseline.': 'Записей пока нет — эта тренировка задаёт отправную точку.',
+  'No sessions at {0} reps yet — weight taken from your best estimated 1RM.': 'На {0} повторений ещё не было записей — вес взят из лучшего расчётного 1ПМ.',
   'Held every set for the full time — target up by {0}s.': 'Все подходы выдержаны полностью — цель выше на {0} с.',
   'Short {0} sessions in a row — back off to {1}s and build up again.': '{0} тренировки подряд короче цели — вернись к {1} с и наращивай снова.',
   'Last time came up short — same target again.': 'В прошлый раз не хватило — та же цель ещё раз.',

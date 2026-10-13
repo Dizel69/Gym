@@ -358,12 +358,15 @@ describe('freestyleConfig', () => {
     const cfg = freestyleConfig(S, { id: LIFT, mode: 'reps', sets: 3, reps: 10, weight: 0 })
 
     expect(cfg).toEqual({ id: LIFT, mode: 'reps', sets: 4, reps: 8, weight: 60, prog: 'linear' })
-    expect(buildSets(S, cfg)).toEqual([
+    // Freestyle reproduces each logged set. A planned line of the same target opens at the
+    // plan's reps, so a 8/7/6/5 pyramid does not become the next prescription.
+    expect(buildSets(S, cfg, { preferLast: true })).toEqual([
       { w: 60, r: 8, done: false },
       { w: 62.5, r: 7, done: false },
       { w: 62.5, r: 6, done: false },
       { w: 62.5, r: 5, done: false }
     ])
+    expect(buildSets(S, cfg).map(s => s.r)).toEqual([8, 8, 8, 8])
   })
 
   // Planned warm-ups: the routine says how many, buildSets stacks them onto the work sets with
@@ -483,7 +486,9 @@ describe('buildSets', () => {
 
   it('still prefers the confirmed working weight for reps sets', () => {
     const S = { exWeights: { [LIFT]: { w: 75 } }, workouts: [{ d: '2026-01-01', entries: [{ id: LIFT, sets: [{ w: 60, r: 10, done: true }] }] }] }
-    expect(buildSets(S, { id: LIFT, sets: 1, reps: 8, weight: 50 })).toEqual([{ w: 75, r: 10, done: false }])
+    // 10 reps is a different line from this 8-rep plan, so the rep count stays the plan's.
+    // The confirmed working weight is still the load hint until a prescription replaces it.
+    expect(buildSets(S, { id: LIFT, sets: 1, reps: 8, weight: 50 })).toEqual([{ w: 75, r: 8, done: false }])
   })
 
   it('can preserve each last set weight for freestyle instead of using the working-weight hint', () => {
@@ -1146,7 +1151,7 @@ describe('lastEntryFor / buildSets skip a noProg entry', () => {
   })
   it('buildSets seeds opening rows from the last counting session', () => {
     const S = { exWeights: {}, workouts: [wk('2026-01-01', 60, 8), wk('2026-01-05', 30, 12, { noProg: true })] }
-    expect(buildSets(S, { id: LIFT2, sets: 1, reps: 5, weight: 50 })).toEqual([{ w: 60, r: 8, done: false }])
+    expect(buildSets(S, { id: LIFT2, sets: 1, reps: 8, weight: 50 })).toEqual([{ w: 60, r: 8, done: false }])
   })
   it('buildSets with only noProg history falls back to the routine target', () => {
     const S = { exWeights: {}, workouts: [wk('2026-01-05', 30, 12, { noProg: true })] }

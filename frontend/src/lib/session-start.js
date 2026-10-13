@@ -3,7 +3,7 @@
 // to identical entries, or the two paths drift apart the first time a prescription rule changes.
 // Imports both history.js and progression.js (which itself imports history.js); nothing in
 // either imports this file, so there is no cycle.
-import { buildSets, applyIntensifierPlan, modeOf } from './history.js'
+import { buildSets, applyIntensifierPlan, modeOf, splitsByReps } from './history.js'
 import { nextPrescription, applyPrescription, defaultIncrement, weightIncrement } from './progression.js'
 
 // Returns a bare array of session entries. "Excluded from progression" is per-entry now
@@ -24,6 +24,9 @@ export function buildSessionEntries(st, r) {
     const step = modeOf(cfg) === 'reps' ? weightIncrement(cfg, st.unit) : defaultIncrement(cfg.id, st.unit)
     const sets = applyIntensifierPlan(applyPrescription(buildSets(st, cfg, { step, useTarget: plan.kind === 'off' }), plan, step), cfg)
     const target = { ...cfg }
+    // The prescription may move target.reps (a double-progression aim, a deload). The line
+    // stays the plan's rep count, so the next session of this target can still find this one.
+    if (splitsByReps(cfg)) target.repsTop = Number(cfg.reps)
     if (plan.weight != null) target.weight = plan.weight
     if (plan.reps != null) target.reps = plan.reps
     if (plan.sec != null) target.sec = plan.sec

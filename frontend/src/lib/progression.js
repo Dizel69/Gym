@@ -16,10 +16,11 @@
 //   · fewer sets than prescribed                       → miss
 // So a session that fell apart can never advance the load as though it had succeeded.
 
-import { modeOf, repStep, rerampWarmups, isBw, isPerSide, entryExcluded } from './history.js'
+import { modeOf, repStep, rerampWarmups, isBw, isPerSide, entryExcluded, entryOnLine, splitsByReps } from './history.js'
 import { EXIDX, isAssisted } from './exercises.js'
 import { isWarmupRow, isSideSet, syncSideAggregate, makeSideSet } from './workout-model.js'
 import { normalizeRepRange } from './rep-range.js'
+import { bestSetOf } from './onerm.js'
 
 export const POLICIES = ['off', 'linear', 'greyskull', 'double', 'time']
 
@@ -274,6 +275,9 @@ export function sessionsFor(S, exId, fallback) {
     // only its own. `noProg` is frozen onto the entry at build time, so later routine edits
     // never rewrite it. This is the only progression-exclusion path in the file.
     if (entryExcluded(w, entry)) return
+    // Loaded rep work is one line per planned rep count. Other modes, assistance and
+    // bodyweight keep every session of the exercise (see splitsByReps).
+    if (splitsByReps(fallback) && !entryOnLine(entry, fallback)) return
     if (entry.sets.some(s => s.done && !isWarmupRow(s))) out.push({ d: w.d, ...readSession(entry, fallback) })
   })
   return out
@@ -307,13 +311,35 @@ export function stallCount(sessions, policy) {
   return n
 }
 
+// A new rep line has no sessions of its own, but the exercise may already have an estimated
+// 1RM from other targets. Invert Epley — the same formula estimate1RM uses — back into this
+// plan's reps and snap onto the exercise's load step. Excluded sessions do not count: a
+// rehab block is not a strength estimate to seed from. The chart itself is unchanged.
+function seedWeightFromOtherLines(S, cfg, step) {
+  if (!splitsByReps(cfg)) return null
+  let best = null
+  for (const w of S.workouts || []) {
+    for (const entry of w.entries || []) {
+      if (entry?.id !== cfg.id || entryExcluded(w, entry) || entryOnLine(entry, cfg)) continue
+      const set = bestSetOf(entry)
+      if (set && (!best || set.est > best.est)) best = set
+    }
+  }
+  if (!best) return null
+  const raw = best.est / (1 + Number(cfg.reps) / 30)
+  if (!(raw > 0)) return null
+  const weight = snapWeight(raw, step)
+  return weight > 0 ? weight : null
+}
+
 /**
  * The next prescription for one exercise.
  *
  * Returns `{ weight, reps, sec, why, kind }` — `kind` being one of
- * first | up | hold | deload | off, and `why` a translatable template + args so the app can
+ * first | seed | up | hold | deload | off, and `why` a translatable template + args so the app can
  * always answer "why this number?". A field the policy has no opinion on comes back
- * undefined and the caller keeps whatever the plan said.
+ * undefined and the caller keeps whatever the plan said. `seed` is a first session of one
+ * rep line whose weight was inverted from another line's estimated 1RM.
  */
 export function nextPrescription(S, cfg, routine) {
   const mode = modeOf(cfg)
@@ -333,7 +359,16 @@ export function nextPrescription(S, cfg, routine) {
 
   const sessions = sessionsFor(S, cfg.id, cfg).filter(s => s.mode === mode)
   const last = sessions[sessions.length - 1]
-  if (!last) return { policy, kind: 'first', why: ['Nothing logged yet — this session sets the baseline.'] }
+  if (!last) {
+    const seeded = seedWeightFromOtherLines(S, cfg, inc)
+    if (seeded != null) {
+      return {
+        policy, kind: 'seed', weight: seeded, reps: Number(cfg.reps),
+        why: ['No sessions at {0} reps yet — weight taken from your best estimated 1RM.', cfg.reps]
+      }
+    }
+    return { policy, kind: 'first', why: ['Nothing logged yet — this session sets the baseline.'] }
+  }
 
   const stalls = stallCount(sessions, policy)
   const deloadAt = DELOAD_AFTER[policy] || 3
@@ -384,12 +419,14 @@ export function nextPrescription(S, cfg, routine) {
     if (assisted) return null
     if (mode !== 'reps' || (policy !== 'linear' && policy !== 'double')) return null
     const previous = last.target || {}
+    // The line's plan owns the rep count. A previous aim, or another scheme's target that
+    // shared this top, must not become the deload's reps.
     const target = {
       ...cfg,
       ...previous,
       weight: previous.weight ?? cfg.weight,
-      reps: previous.reps ?? cfg.reps,
-      repsMin: previous.repsMin ?? cfg.repsMin,
+      reps: Number(cfg.reps) > 0 ? Number(cfg.reps) : (previous.reps ?? cfg.reps),
+      repsMin: cfg.repsMin ?? previous.repsMin,
       sets: previous.sets ?? cfg.sets,
       bodyweight: previous.bodyweight ?? cfg.bodyweight,
       side: previous.side ?? cfg.side,
@@ -415,7 +452,9 @@ export function nextPrescription(S, cfg, routine) {
       policy,
       kind: 'deload',
       weight: candidate.weight,
-      reps: candidate.reps,
+      // Double progression may step down inside its own range. Every other policy keeps the
+      // plan's rep count — a deload is allowed to change the load, not the line.
+      reps: policy === 'double' ? candidate.reps : (Number(cfg.reps) > 0 ? Number(cfg.reps) : candidate.reps),
       sets: target.sets,
       target1RM: candidate.target1RM,
       deloadFactor: candidate.factor,
@@ -471,6 +510,7 @@ export function nextPrescription(S, cfg, routine) {
     const dw = easier(w)
     return {
       policy, kind: 'deload', weight: dw,
+      ...(splitsByReps(cfg) ? { reps: Number(cfg.reps) } : {}),
       why: assisted
         ? ['Missed reps — {0} {1} of help while you build back up.', dw, unit]
         : stalls > 1

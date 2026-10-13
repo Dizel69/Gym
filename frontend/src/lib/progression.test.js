@@ -384,7 +384,9 @@ describe('double progression', () => {
 
     // Training exactly what it asked for: its weight, its reps, every set checked off.
     const asPrescribed = [deload.weight, ...Array(target.sets).fill(deload.reps)]
-    const effectiveTarget = { ...target, weight: deload.weight, reps: deload.reps }
+    // The saved config keeps the range (repsMin). The prescribed reps may be the bottom;
+    // that session still belongs to the line whose top is cfg.reps.
+    const effectiveTarget = { ...target, repsMin: cfg.repsMin, weight: deload.weight, reps: deload.reps }
     const completed = hist(LIFT, stalled, target)
     completed.workouts.push({
       d: '2026-01-04',
