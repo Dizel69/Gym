@@ -39,8 +39,9 @@ describe('extra kettlebell exercises', () => {
     for (const extra of KETTLEBELL_EXTRA) {
       const live = CATALOGUE.find(exercise => exercise.id === extra.id)
       expect(live, extra.id).toBeTruthy()
-      expect(imgSrc(live), extra.id).toBe(`/kettlebell/${extra.id}.jpg`)
-      expect(gifSrc(live), extra.id).toBe(extra.gif.endsWith('.gif') ? `/kettlebell/${extra.id}.gif` : imgSrc(live))
+      expect(imgSrc(live), extra.id).toBe(extra.img.startsWith('/') ? extra.img : 'img/' + extra.img)
+      expect(gifSrc(live), extra.id).toBe(extra.gif.startsWith('/') ? extra.gif : 'gif/' + extra.gif)
+      if (!extra.img.startsWith('/')) expect(extra.gif, extra.id).toMatch(/\.gif$/)
       expect(live.st.length, extra.id).toBeGreaterThan(2)
       expect(exerciseNameFor(live), extra.id).toBe(NAMES[extra.id])
       expect(Object.values(musclesOf(live)).some(weight => weight > 0), extra.id).toBe(true)
