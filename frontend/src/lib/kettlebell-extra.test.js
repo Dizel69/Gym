@@ -9,6 +9,25 @@ const NAMES = {
   'kb-halo': 'Вращение гири вокруг головы',
   'kb-around': 'Вращение гири вокруг корпуса',
   'kb-punch': 'Удар с гирей',
+  'kb-full-swing': 'Полные свинги',
+  'kb-upright': 'Тяга гири к подбородку',
+  'kb-deadlift': 'Становая с гирей',
+  'kb-pass': 'Переброс гири',
+  'kb-side-bend': 'Наклоны с гирей',
+  'kb-regrip': 'Перехватка гири',
+  'kb-plyo-squat': 'Плиометрические приседания с гирей',
+  'kb-curl': 'Сгибание гири двумя руками',
+  'kb-clean-press': 'Взятие на плечо и жим одной рукой',
+  'kb-swing-one': 'Мах гири одной рукой',
+  'kb-pendulum': 'Маятник с гирей',
+  'kb-oh-ext': 'Разгибание из-за головы с гирей',
+  'kb-world': 'Вокруг света с разворотом корпуса',
+  'kb-cuckoo': 'Выпад «пролетая над гнездом кукушки»',
+  'kb-burst': 'Взрыв гантели',
+  'kb-high-pull': 'Тяга с протяжкой',
+  'kb-curl-alt': 'Подъём на бицепс поочерёдно',
+  'kb-press': 'Жим гири',
+  'kb-protyazhka': 'Протяжка с гирей',
 }
 
 describe('extra kettlebell exercises', () => {
@@ -16,14 +35,15 @@ describe('extra kettlebell exercises', () => {
 
   test('show in the catalogue with a picture and a Russian name', () => {
     _setLangState('ru', {}, null, ru)
-    expect(KETTLEBELL_EXTRA.map(exercise => exercise.id)).toEqual(['kb-halo', 'kb-around', 'kb-punch'])
+    expect(KETTLEBELL_EXTRA.map(exercise => exercise.id)).toEqual(Object.keys(NAMES))
     for (const extra of KETTLEBELL_EXTRA) {
       const live = CATALOGUE.find(exercise => exercise.id === extra.id)
       expect(live, extra.id).toBeTruthy()
       expect(imgSrc(live), extra.id).toBe(`/kettlebell/${extra.id}.jpg`)
-      expect(gifSrc(live), extra.id).toBe(imgSrc(live))
+      expect(gifSrc(live), extra.id).toBe(extra.gif.endsWith('.gif') ? `/kettlebell/${extra.id}.gif` : imgSrc(live))
       expect(live.st.length, extra.id).toBeGreaterThan(2)
       expect(exerciseNameFor(live), extra.id).toBe(NAMES[extra.id])
+      expect(Object.values(musclesOf(live)).some(weight => weight > 0), extra.id).toBe(true)
     }
     expect(searchExercises(CATALOGUE, 'перебрасывание').map(exercise => exercise.id)).not.toContain('kb-pass')
     expect(searchExercises(CATALOGUE, 'удар гирей').map(exercise => exercise.id)).toContain('kb-punch')
