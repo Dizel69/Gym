@@ -148,7 +148,7 @@ class HealthPlugin : Plugin() {
                 TimeRangeFilter.between(start, end),
             )
         )[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
-        energy?.kilocalories?.let { kotlin.math.round(it).toInt().coerceAtLeast(0) }
+        if (energy == null) null else kotlin.math.round(energy.inKilocalories).toInt().coerceAtLeast(0)
     } catch (_: Exception) {
         null
     }
