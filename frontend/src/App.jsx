@@ -13,6 +13,7 @@ import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { MOBILE } from './lib/mobile.js'
+import { startHealthSync } from './lib/health-sync.js'
 import { startFlow } from './sheets.jsx'
 import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
@@ -100,6 +101,9 @@ function Shell() {
     if (MOBILE || !user || !ready) return
     syncPushSubscription().catch(() => {})
   }, [user?.id, ready])
+  // Phone only: pull steps, sleep and active calories when the app opens and
+  // whenever it comes back. The website just displays what that sync stored.
+  useEffect(() => { startHealthSync() }, [])
   useEffect(() => {
     const onScroll = () => {
       // Modals pins the body while a sheet is open; scrollY is 0 then, not a position.

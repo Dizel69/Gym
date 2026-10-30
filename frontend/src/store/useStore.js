@@ -82,6 +82,15 @@ export const DEF = {
   // the session straight away; weight can still be logged from Home/Stats. Defaults on; an
   // older profile without the key reads as on (`!== false`).
   weighIn: true,
+  // Daily watch summary the phone reads from Health Connect (Samsung Health shares
+  // into it). Not a workout: steps, minutes asleep, and active kilocalories for one
+  // local day. The website shows the same rows once the phone has synced them.
+  //   [{ d, steps?, sleepMin?, activeKcal? }]
+  healthDays: [],
+  // Settings → Samsung Health. On: the phone reads Health Connect and syncs the
+  // days above. Off: it stops reading; days already stored stay. Missing on an
+  // older profile means on (`!== false`).
+  healthImport: true,
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 

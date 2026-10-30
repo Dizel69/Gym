@@ -13,6 +13,7 @@ import { wakeLockSupported } from '../lib/wakelock.js'
 import { t, LANGS, INSTR_LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, isAndroid, shareExport, syncReminder } from '../lib/mobile.js'
+import { healthStatus, requestHealthAccess, syncHealthIntoStore } from '../lib/health-sync.js'
 import { checkForUpdate, downloadAndInstall, fetchReleaseText, RELEASES_PAGE } from '../lib/update.js'
 import { forgetCoach } from '../lib/coach-api.js'
 import { ConnectSheet } from './MobileOnboarding.jsx'
@@ -254,6 +255,21 @@ export default function Settings() {
       <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
         subtitle={t('Show a card on Home with your membership QR codes.')}>
         <Switch checked={S.checkIn !== false} onChange={v => update(s => { s.checkIn = v })} />
+      </Row>
+    </Section>
+
+    <Section title={t('Samsung Health')} footer={t('Workouts are not imported. Calories are the watch\'s estimate. In Samsung Health, turn on sharing with Health Connect once. Off stops new reads; numbers already saved stay.')}>
+      <Row icon="figureRun" iconTint="var(--acc)" title={t('Import from Samsung Health')}
+        subtitle={t('Steps, sleep and active calories. The website shows them after the phone syncs.')}>
+        <Switch checked={S.healthImport !== false} onChange={v => {
+          update(s => { s.healthImport = v })
+          if (!v || !MOBILE) return
+          healthStatus().then(status => {
+            if (status.granted) return syncHealthIntoStore()
+            if (!status.available) return
+            return requestHealthAccess().then(next => { if (next?.granted) return syncHealthIntoStore() })
+          }).catch(() => {})
+        }} />
       </Row>
     </Section>
 

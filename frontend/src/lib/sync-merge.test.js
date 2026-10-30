@@ -72,6 +72,16 @@ describe('mergeStates', () => {
     expect(m2.routines.find(r => r.id === 'shared').name).toBe('from B')
   })
 
+  it('health days keep the newer numbers and a field the newer copy left out', () => {
+    const phone = base({ _ts: 50, healthDays: [{ d: '2026-10-29', steps: 4000, sleepMin: 420 }] })
+    const desktop = base({ _ts: 80, healthDays: [{ d: '2026-10-29', steps: 9000 }, { d: '2026-10-30', activeKcal: 30 }] })
+    const m = mergeStates(phone, desktop)
+    expect(m.healthDays).toEqual([
+      { d: '2026-10-29', steps: 9000, sleepMin: 420 },
+      { d: '2026-10-30', activeKcal: 30 }
+    ])
+  })
+
   it('bodyweight keeps the later-edited entry of a day, exWeights the larger weight, notes union', () => {
     const m = mergeStates(A(), B())
     expect(m.bodyweight.find(b => b.d === '2026-09-01')).toEqual({ d: '2026-09-01', w: 79, t: 20 })

@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
 
 android {
     namespace "ch.duartesantos.opengym"
@@ -8,13 +9,20 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode ((project.findProperty('versionCodeOverride') ?: '22').toInteger())
-        versionName ((project.findProperty('versionNameOverride') ?: '1.4.2'))
+        versionName ((project.findProperty('versionNameOverride') ?: '2.0.1'))
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    kotlinOptions {
+        jvmTarget = '21'
     }
     buildTypes {
         release {
@@ -42,6 +50,11 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // Stable connect-client 1.1.0 demands compileSdk 36 and AGP 8.9. This project
+    // is compileSdk 35 / AGP 8.7.2, so the last release that still builds here is
+    // 1.1.0-alpha12. Read-only: steps, sleep, active calories.
+    implementation "androidx.health.connect:connect-client:1.1.0-alpha12"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

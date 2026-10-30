@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, streakWeeks, lastBW, setsDoneActive } from '../lib/history.js'
@@ -11,6 +11,87 @@ import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import TodaySuggestion from '../components/TodaySuggestion.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
+import { MOBILE } from '../lib/mobile.js'
+import { healthImportOn, sleepParts } from '../lib/health.js'
+import { healthStatus, requestHealthAccess, syncHealthIntoStore } from '../lib/health-sync.js'
+
+function sleepLabel(min) {
+  const p = sleepParts(min)
+  if (!p) return '—'
+  if (p.h <= 0) return t('{0} min', p.m)
+  if (p.m === 0) return t('{0} h', p.h)
+  return t('{0} h {1} min', p.h, p.m)
+}
+
+function WatchMetric({ icon, label, value }) {
+  return (
+    <div>
+      <div className="muted small row" style={{ gap: 4 }}><Icon name={icon} style={{ fontSize: 13 }} />{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-.02em', marginTop: 2 }}>{value}</div>
+    </div>
+  )
+}
+
+// Today's watch summary. On the phone it can ask Health Connect for access; on
+// the website it only appears once the phone has synced a day.
+function WatchCard({ S }) {
+  const days = S.healthDays || []
+  const importing = healthImportOn(S)
+  const today = todayISO()
+  const todayRow = days.find(d => d.d === today) || null
+  const latest = days.length ? days[days.length - 1] : null
+  const [link, setLink] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (!MOBILE || !importing) { setLink(null); return }
+    let stop = false
+    const refresh = () => healthStatus().then(s => { if (!stop) setLink(s) })
+    refresh()
+    const onVis = () => { if (document.visibilityState === 'visible') refresh() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { stop = true; document.removeEventListener('visibilitychange', onVis) }
+  }, [importing])
+  if (!days.length && (!MOBILE || !importing)) return null
+  const granted = !!link?.granted
+  const row = importing && (granted || MOBILE) ? todayRow : (todayRow || latest)
+  const showNumbers = !!row || (importing && granted)
+  const num = (v, format) => (v == null ? '—' : format(v))
+  const connect = async () => {
+    setBusy(true)
+    try {
+      const status = await requestHealthAccess()
+      setLink(status)
+      if (status?.granted) {
+        await syncHealthIntoStore()
+        setLink(await healthStatus())
+      }
+    } finally { setBusy(false) }
+  }
+  return (
+    <div className="card">
+      <div className="row between" style={{ marginBottom: 4 }}>
+        <h2 style={{ margin: 0 }}>{t('From the watch')}</h2>
+        {row && row.d !== today && <span className="dim small">{fmtDate(row.d, true)}</span>}
+      </div>
+      <div className="muted small">{t('Steps, sleep and active calories from the watch. Workouts are not imported. Calories are the watch\'s estimate.')}</div>
+      {showNumbers && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 12 }}>
+          <WatchMetric icon="figureRun" label={t('Steps')} value={num(row?.steps, fmtNum)} />
+          <WatchMetric icon="moon" label={t('Sleep')} value={row?.sleepMin == null ? '—' : sleepLabel(row.sleepMin)} />
+          <WatchMetric icon="flame" label={t('Active kcal')} value={num(row?.activeKcal, fmtNum)} />
+        </div>
+      )}
+      {importing && MOBILE && link && !link.granted && (
+        <div style={{ marginTop: 12 }}>
+          {link.available === false
+            ? <div className="muted small">{t('Health Connect is not on this phone.')}</div>
+            : <Button size="sm" icon="link" disabled={busy} onClick={connect}>{t('Connect Samsung Health')}</Button>}
+          <div className="muted small" style={{ marginTop: 8 }}>{t('In Samsung Health, turn on sharing with Health Connect once.')}</div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
@@ -139,6 +220,8 @@ export default function Home() {
         <div style={{ height: 8 }} /><Button onClick={() => nav('/plan')}>{t('Build my own plan')}</Button>
       </div>
     )}
+
+    <WatchCard S={S} />
 
     <div className="card">
       <div className="row between bw-head" style={{ marginBottom: 6 }}>

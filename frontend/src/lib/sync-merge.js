@@ -11,6 +11,7 @@
  *   - workouts, routines, customEx, equipProfiles, gymCards: union by id, the newer copy's version
  *     of an id that both have; workouts sorted by day and start like every other writer
  *   - bodyweight: union by day, the later-edited (`t`) entry of a day that both have
+ *   - healthDays: union by day; the newer copy's numbers win, a field it omits stays
  *   - favEx: ordered set union, the newer copy first
  *   - exWeights: union by exercise, the better `w` for that exercise — larger for an ordinary
  *     lift, smaller on an assistance machine (a PR logged on the other device must not be
@@ -23,6 +24,7 @@
  * would close it.
  */
 import { beatsWeight } from './exercises.js'
+import { mergeHealthDays } from './health.js'
 
 const clone = o => JSON.parse(JSON.stringify(o))
 const list = v => (Array.isArray(v) ? v : [])
@@ -89,6 +91,9 @@ export function mergeStates(a, b, { prefer } = {}) {
     if (list(n[f]).length || list(o[f]).length) out[f] = unionById(n[f], o[f]).map(clone)
   }
   out.bodyweight = mergeBodyweight(n.bodyweight, o.bodyweight).map(clone)
+  if (list(n.healthDays).length || list(o.healthDays).length) {
+    out.healthDays = mergeHealthDays(o.healthDays, n.healthDays)
+  }
   if (list(n.favEx).length || list(o.favEx).length) out.favEx = [...new Set([...list(n.favEx), ...list(o.favEx)])]
   out.exWeights = clone(mergeExWeights(n.exWeights, o.exWeights))
   for (const f of ['exNotes', 'barWeights']) {
