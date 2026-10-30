@@ -222,6 +222,7 @@ afterEach(async () => {
 describe('Stats muscle recovery view runtime', () => {
   it('dispatches real clicks through Balance, Fatigue, and Strength and preserves selection', async () => {
     await mountStats()
+    expect(container.textContent).not.toContain('Week on the body')
     expectPressed(viewButton('Muscle balance'))
     expectPressed(balanceRangeButton('Week'))
 
