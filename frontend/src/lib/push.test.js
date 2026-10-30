@@ -98,3 +98,32 @@ describe('pushSupported', () => {
     expect(location.protocol).toBe('https:')
   })
 })
+
+describe('armRestPush', () => {
+  it('sends the rest to the server immediately when permission is already granted', async () => {
+    const { armRestPush, deviceId } = await import('./push.js')
+    Notification.permission = 'granted'
+    await armRestPush(90)
+    expect(Notification.requestPermission).not.toHaveBeenCalled()
+    expect(calls.at(-1)).toEqual(['/api/push/rest-timer', 'POST', { seconds: 90, deviceId: deviceId() }])
+  })
+
+  it('asks once while permission is undecided, then sends the rest', async () => {
+    const { armRestPush } = await import('./push.js')
+    Notification.permission = 'default'
+    Notification.requestPermission = vi.fn(async () => { Notification.permission = 'granted'; return 'granted' })
+    await armRestPush(60)
+    expect(Notification.requestPermission).toHaveBeenCalledTimes(1)
+    expect(calls.some(c => c[0] === '/api/push/subscribe')).toBe(true)
+    expect(calls.some(c => c[0] === '/api/push/rest-timer' && c[2].seconds === 60)).toBe(true)
+  })
+
+  it('does not ask again after a denial, and does not subscribe', async () => {
+    const { armRestPush } = await import('./push.js')
+    Notification.permission = 'denied'
+    await armRestPush(60)
+    expect(Notification.requestPermission).not.toHaveBeenCalled()
+    expect(calls.some(c => c[0] === '/api/push/subscribe')).toBe(false)
+    expect(calls.some(c => c[0] === '/api/push/rest-timer')).toBe(true)
+  })
+})

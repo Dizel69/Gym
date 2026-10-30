@@ -541,7 +541,10 @@ function MobileReminderCard({ S, update, toast }) {
   }
   return (
     <Section title={t('Notifications')}
-      footer={S.reminder?.on ? t('Reminds you at this time on days that have a routine planned.') : null}>
+      footer={[
+        t('The rest timer notifies you when it ends, even in another app.'),
+        S.reminder?.on ? t('Reminds you at this time on days that have a routine planned.') : null,
+      ].filter(Boolean).join(' ')}>
       <Row icon="calendar" iconTint="var(--orange)" title={t('Workout day reminder')}>
         <Switch checked={!!S.reminder?.on} onChange={toggle} />
       </Row>

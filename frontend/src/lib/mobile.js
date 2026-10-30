@@ -92,6 +92,76 @@ export const REMINDER_WINDOW_DAYS = 60
 const REMINDER_ID_BASE = 1000
 const LEGACY_REMINDER_IDS = Array.from({ length: 7 }, (_, d) => ({ id: 100 + d }))
 
+// One slot, away from the day-reminder ids. Replaced on every rest so a skipped
+// timer cannot fire later, and so "+15s" moves the same alert instead of stacking.
+export const REST_NOTIFICATION_ID = 7
+export const REST_CHANNEL_ID = 'rest-timer'
+
+// The payload the OS should deliver when a rest ends. Null when the moment has
+// already passed — scheduling that would pop a "rest over" for a timer already done.
+export function restAlertNotification(endsAt, now = Date.now()) {
+  const at = endsAt instanceof Date ? new Date(endsAt.getTime()) : new Date(endsAt)
+  if (!(at.getTime() > now)) return null
+  return {
+    id: REST_NOTIFICATION_ID,
+    title: t('Rest over — next set!'),
+    channelId: REST_CHANNEL_ID,
+    autoCancel: true,
+    schedule: { at, allowWhileIdle: true },
+  }
+}
+
+let restAlertChain = Promise.resolve()
+let restChannelReady = false
+
+async function localNotifications() {
+  const { LocalNotifications } = await import('@capacitor/local-notifications')
+  if (!restChannelReady) {
+    // Importance 5 is the heads-up level: a shade-only notification stays behind Telegram.
+    await LocalNotifications.createChannel({
+      id: REST_CHANNEL_ID,
+      name: t('Rest timer'),
+      description: t('Rest over — next set!'),
+      importance: 5,
+      vibration: true,
+      visibility: 1,
+    }).catch(() => {})
+    restChannelReady = true
+  }
+  return LocalNotifications
+}
+
+// Queued so a cancel started by stopRest cannot land after the schedule that
+// replaced it and swallow the new rest.
+function enqueueRestAlert(job) {
+  restAlertChain = restAlertChain.then(job).catch(() => {})
+  return restAlertChain
+}
+
+export function scheduleRestNotification(endsAt) {
+  if (!MOBILE) return Promise.resolve()
+  return enqueueRestAlert(async () => {
+    const note = restAlertNotification(endsAt)
+    if (!note) return
+    const LocalNotifications = await localNotifications()
+    let perm = await LocalNotifications.checkPermissions()
+    if (perm.display !== 'granted') perm = await LocalNotifications.requestPermissions()
+    if (perm.display !== 'granted') return
+    const still = restAlertNotification(endsAt)
+    if (!still) return
+    await LocalNotifications.cancel({ notifications: [{ id: REST_NOTIFICATION_ID }] }).catch(() => {})
+    await LocalNotifications.schedule({ notifications: [still] })
+  })
+}
+
+export function cancelRestNotification() {
+  if (!MOBILE) return Promise.resolve()
+  return enqueueRestAlert(async () => {
+    const LocalNotifications = await localNotifications()
+    await LocalNotifications.cancel({ notifications: [{ id: REST_NOTIFICATION_ID }] })
+  })
+}
+
 // Pure date expansion for the native reminder. `now` is injectable so the calendar boundary,
 // completed-day suppression, and today's past-time rule stay deterministic in tests.
 export function buildReminderNotifications(S, now = new Date()) {

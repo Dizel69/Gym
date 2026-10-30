@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isoOf } from './format.js'
-import { buildReminderNotifications } from './mobile.js'
+import { buildReminderNotifications, restAlertNotification, REST_NOTIFICATION_ID, REST_CHANNEL_ID } from './mobile.js'
 
 const push = { id: 'push', name: 'Push' }
 const pull = { id: 'pull', name: 'Pull' }
@@ -73,5 +73,25 @@ describe('buildReminderNotifications', () => {
     const now = new Date(2026, 5, 1, 7, 0)
     const n = buildReminderNotifications(state({ week: { 1: ['push', 'pull', 'legs'] } }), now)[0]
     expect(n.body).toContain('3 routines')
+  })
+})
+
+describe('restAlertNotification', () => {
+  it('schedules one heads-up alert at the end of the rest, on its own id', () => {
+    const now = new Date(2026, 5, 1, 12, 0, 0).getTime()
+    const note = restAlertNotification(now + 90_000, now)
+    expect(note.id).toBe(REST_NOTIFICATION_ID)
+    expect(note.id).toBeLessThan(1000)
+    expect(note.title).toBe('Rest over — next set!')
+    expect(note.channelId).toBe(REST_CHANNEL_ID)
+    expect(note.schedule.at.getTime()).toBe(now + 90_000)
+    expect(note.schedule.allowWhileIdle).toBe(true)
+    expect(note.autoCancel).toBe(true)
+  })
+
+  it('does not schedule an alert for a rest that has already ended', () => {
+    const now = new Date(2026, 5, 1, 12, 0, 0).getTime()
+    expect(restAlertNotification(now, now)).toBe(null)
+    expect(restAlertNotification(now - 1000, now)).toBe(null)
   })
 })

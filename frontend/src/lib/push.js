@@ -88,3 +88,20 @@ export async function syncPushSubscription() {
 }
 
 export const sendTestPush = () => api('/api/push/test', { method: 'POST', body: '{}' })
+
+const sendRestTimer = sec => api('/api/push/rest-timer', {
+  method: 'POST',
+  body: JSON.stringify({ seconds: sec, deviceId: deviceId() }),
+}).catch(() => {})
+
+// The page timer dies when the phone is in another app. The server push is what
+// still arrives. Permission is asked only while it has never been decided: once
+// granted, the Settings switch owns it, and a denial is not asked again.
+export function armRestPush(sec) {
+  if (!(sec > 0)) return Promise.resolve()
+  if (pushSupported() && Notification.permission === 'default') {
+    return enablePush().then(() => sendRestTimer(sec), () => {})
+  }
+  sendRestTimer(sec)
+  return Promise.resolve()
+}
