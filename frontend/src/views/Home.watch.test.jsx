@@ -70,6 +70,7 @@ describe('watch card on Home', () => {
     expect(view.text).toContain(fmtNum(8420))
     expect(view.text).toContain('7 h 32 min')
     expect(view.text).toContain(fmtNum(310))
+    expect(view.text).toContain('Burned kcal')
     expect(view.text).toContain('Workouts are not imported')
     view.unmount()
   })

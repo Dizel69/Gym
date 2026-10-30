@@ -53,8 +53,11 @@ function WatchCard({ S }) {
   }, [importing])
   if (!days.length && (!MOBILE || !importing)) return null
   const granted = !!link?.granted
-  const row = importing && (granted || MOBILE) ? todayRow : (todayRow || latest)
-  const showNumbers = !!row || (importing && granted)
+  const hasNumbers = row => !!row && (row.steps != null || row.sleepMin != null || row.activeKcal != null)
+  // Today stays blank until Samsung has written that day. A previous day still
+  // counts: showing dashes for today hid a sync that had already landed.
+  const row = hasNumbers(todayRow) ? todayRow : (hasNumbers(latest) ? latest : null)
+  const showNumbers = hasNumbers(row) || (importing && granted)
   const num = (v, format) => (v == null ? '—' : format(v))
   const connect = async () => {
     setBusy(true)
@@ -78,15 +81,18 @@ function WatchCard({ S }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 12 }}>
           <WatchMetric icon="figureRun" label={t('Steps')} value={num(row?.steps, fmtNum)} />
           <WatchMetric icon="moon" label={t('Sleep')} value={row?.sleepMin == null ? '—' : sleepLabel(row.sleepMin)} />
-          <WatchMetric icon="flame" label={t('Active kcal')} value={num(row?.activeKcal, fmtNum)} />
+          <WatchMetric icon="flame" label={t('Burned kcal')} value={num(row?.activeKcal, fmtNum)} />
         </div>
       )}
-      {importing && MOBILE && link && !link.granted && (
+      {importing && MOBILE && granted && !hasNumbers(row) && (
+        <div className="muted small" style={{ marginTop: 8 }}>{t('Nothing from the watch yet. Open Samsung Health, then come back here.')}</div>
+      )}
+      {importing && MOBILE && link && !link.full && (
         <div style={{ marginTop: 12 }}>
           {link.available === false
             ? <div className="muted small">{t('Health Connect is not on this phone.')}</div>
-            : <Button size="sm" icon="link" disabled={busy} onClick={connect}>{t('Connect Samsung Health')}</Button>}
-          <div className="muted small" style={{ marginTop: 8 }}>{t('In Samsung Health, turn on sharing with Health Connect once.')}</div>
+            : <Button size="sm" icon="link" disabled={busy} onClick={connect}>{t(link.granted ? 'Allow calories' : 'Connect Samsung Health')}</Button>}
+          {!link.granted && <div className="muted small" style={{ marginTop: 8 }}>{t('In Samsung Health, turn on sharing with Health Connect once.')}</div>}
         </div>
       )}
     </div>

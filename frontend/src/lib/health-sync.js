@@ -9,22 +9,22 @@ const Health = MOBILE ? registerPlugin('Health') : null
 let started = false
 
 export async function healthStatus() {
-  if (!Health) return { available: false, granted: false }
+  if (!Health) return { available: false, granted: false, full: false }
   try {
     const s = await Health.status()
-    return { available: !!s?.available, granted: !!s?.granted }
+    return { available: !!s?.available, granted: !!s?.granted, full: !!s?.full }
   } catch {
-    return { available: false, granted: false }
+    return { available: false, granted: false, full: false }
   }
 }
 
 export async function requestHealthAccess() {
-  if (!Health) return { available: false, granted: false }
+  if (!Health) return { available: false, granted: false, full: false }
   try {
     const s = await Health.request()
-    return { available: !!s?.available, granted: !!s?.granted }
+    return { available: !!s?.available, granted: !!s?.granted, full: !!s?.full }
   } catch {
-    return { available: false, granted: false }
+    return { available: false, granted: false, full: false }
   }
 }
 

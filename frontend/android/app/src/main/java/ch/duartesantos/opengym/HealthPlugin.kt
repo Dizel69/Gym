@@ -5,8 +5,10 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -24,8 +26,10 @@ import kotlinx.coroutines.runBlocking
 
 /**
  * Read-only bridge to Health Connect. Samsung Health writes steps, sleep and
- * active calories there once the user turns sharing on. Exercise sessions are
- * intentionally not read — they would fight the workout log.
+ * total burned calories there once sharing is on. Exercise sessions are not
+ * read — they would fight the workout log. Steps are summed from the records
+ * themselves: the aggregate total stays empty when Samsung is not first in
+ * Health Connect's source list.
  *
  * JS: registerPlugin('Health') → status(), request(), read().
  */
@@ -35,8 +39,13 @@ class HealthPlugin : Plugin() {
     private fun wanted(): Set<String> = setOf(
         HealthPermission.getReadPermission(StepsRecord::class),
         HealthPermission.getReadPermission(SleepSessionRecord::class),
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
     )
+
+    /** One granted type is enough to read. Requiring every type blocked steps
+     *  when active calories — which Samsung does not write — was still missing. */
+    private fun allowed(granted: Set<String>) = granted.any { it in wanted() }
 
     private fun available(): Boolean {
         val ctx = context ?: return false
@@ -52,7 +61,7 @@ class HealthPlugin : Plugin() {
         execute {
             try {
                 val granted = runBlocking { client().permissionController.getGrantedPermissions() }
-                call.resolve(result(true, granted.containsAll(wanted())))
+                call.resolve(result(true, allowed(granted), granted.containsAll(wanted())))
             } catch (e: Exception) {
                 call.reject(e.message ?: "health status failed")
             }
@@ -80,7 +89,7 @@ class HealthPlugin : Plugin() {
         if (call == null) return
         val granted = PermissionController.createRequestPermissionResultContract()
             .parseResult(result.resultCode, result.data)
-        call.resolve(result(true, granted.containsAll(wanted())))
+        call.resolve(result(true, allowed(granted), granted.containsAll(wanted())))
     }
 
     @PluginMethod
@@ -107,19 +116,22 @@ class HealthPlugin : Plugin() {
 
     private suspend fun readDays(): JSArray {
         val hc = client()
+        val granted = hc.permissionController.getGrantedPermissions()
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
         val first = today.minusDays(13)
         val windowStart = first.atStartOfDay(zone).toInstant()
         val windowEnd = today.plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1)
-        val sleepByDay = sleepMinutes(hc, windowStart, windowEnd, zone)
+        val stepsPerm = HealthPermission.getReadPermission(StepsRecord::class)
+        val sleepPerm = HealthPermission.getReadPermission(SleepSessionRecord::class)
+        val stepsByDay = if (stepsPerm in granted) stepsByDay(hc, windowStart, windowEnd, zone) else emptyMap()
+        val kcalByDay = caloriesByDay(hc, granted, windowStart, windowEnd, zone)
+        val sleepByDay = if (sleepPerm in granted) sleepMinutes(hc, windowStart, windowEnd, zone) else emptyMap()
         val out = JSArray()
         var day = first
         while (!day.isAfter(today)) {
-            val start = day.atStartOfDay(zone).toInstant()
-            val end = day.plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1)
-            val steps = aggregateSteps(hc, start, end)
-            val kcal = aggregateKcal(hc, start, end)
+            val steps = stepsByDay[day]
+            val kcal = kcalByDay[day]
             val sleep = sleepByDay[day]
             val row = JSObject()
             row.put("d", day.toString())
@@ -133,24 +145,126 @@ class HealthPlugin : Plugin() {
         return out
     }
 
-    private suspend fun aggregateSteps(hc: HealthConnectClient, start: Instant, end: Instant): Long? = try {
-        hc.aggregate(
-            AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(start, end))
-        )[StepsRecord.COUNT_TOTAL]
-    } catch (_: Exception) {
-        null
+    /** Sum the step records. Aggregate stays empty when Samsung is not the priority source. */
+    private suspend fun stepsByDay(
+        hc: HealthConnectClient,
+        start: Instant,
+        end: Instant,
+        zone: ZoneId,
+    ): Map<LocalDate, Long> {
+        val fromRecords = try {
+            val sums = mutableMapOf<LocalDate, Double>()
+            for (rec in readAll(hc, StepsRecord::class, start, end)) {
+                spread(rec.startTime, rec.endTime, rec.count.toDouble(), zone, sums)
+            }
+            sums.mapValues { kotlin.math.round(it.value).toLong() }
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        if (fromRecords.isNotEmpty()) return fromRecords
+        return try {
+            val out = mutableMapOf<LocalDate, Long>()
+            var day = start.atZone(zone).toLocalDate()
+            val last = end.atZone(zone).toLocalDate()
+            while (!day.isAfter(last)) {
+                val dayStart = day.atStartOfDay(zone).toInstant()
+                val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().minusMillis(1)
+                val total = hc.aggregate(
+                    AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(dayStart, dayEnd))
+                )[StepsRecord.COUNT_TOTAL]
+                if (total != null && total > 0) out[day] = total
+                day = day.plusDays(1)
+            }
+            out
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 
-    private suspend fun aggregateKcal(hc: HealthConnectClient, start: Instant, end: Instant): Int? = try {
-        val energy = hc.aggregate(
-            AggregateRequest(
-                setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL),
-                TimeRangeFilter.between(start, end),
+    /**
+     * Samsung writes "total calories burned", not active calories. Prefer that
+     * number; fall back to active calories when it is the only one present.
+     */
+    private suspend fun caloriesByDay(
+        hc: HealthConnectClient,
+        granted: Set<String>,
+        start: Instant,
+        end: Instant,
+        zone: ZoneId,
+    ): Map<LocalDate, Int> {
+        val totalPerm = HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+        val activePerm = HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
+        val total = if (totalPerm in granted) {
+            try {
+                val sums = mutableMapOf<LocalDate, Double>()
+                for (rec in readAll(hc, TotalCaloriesBurnedRecord::class, start, end)) {
+                    spread(rec.startTime, rec.endTime, rec.energy.inKilocalories, zone, sums)
+                }
+                sums
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        } else emptyMap()
+        val active = if (activePerm in granted) {
+            try {
+                val sums = mutableMapOf<LocalDate, Double>()
+                for (rec in readAll(hc, ActiveCaloriesBurnedRecord::class, start, end)) {
+                    spread(rec.startTime, rec.endTime, rec.energy.inKilocalories, zone, sums)
+                }
+                sums
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        } else emptyMap()
+        val days = total.keys + active.keys
+        return days.mapNotNull { day ->
+            val kcal = total[day] ?: active[day] ?: return@mapNotNull null
+            day to kotlin.math.round(kcal).toInt().coerceAtLeast(0)
+        }.toMap()
+    }
+
+    private suspend fun <T : Record> readAll(
+        hc: HealthConnectClient,
+        type: kotlin.reflect.KClass<T>,
+        start: Instant,
+        end: Instant,
+    ): List<T> {
+        val out = mutableListOf<T>()
+        var token: String? = null
+        do {
+            val page = hc.readRecords(
+                ReadRecordsRequest(
+                    recordType = type,
+                    timeRangeFilter = TimeRangeFilter.between(start, end),
+                    pageSize = 1000,
+                    pageToken = token,
+                )
             )
-        )[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
-        if (energy == null) null else kotlin.math.round(energy.inKilocalories).toInt().coerceAtLeast(0)
-    } catch (_: Exception) {
-        null
+            out.addAll(page.records)
+            token = page.pageToken
+        } while (!token.isNullOrEmpty() && out.size < 20000)
+        return out
+    }
+
+    /** Split a record that crosses midnight across the local days it covers. */
+    private fun spread(
+        start: Instant,
+        end: Instant,
+        amount: Double,
+        zone: ZoneId,
+        into: MutableMap<LocalDate, Double>,
+    ) {
+        val dur = end.toEpochMilli() - start.toEpochMilli()
+        if (dur <= 0 || amount == 0.0) return
+        var cursor = start
+        while (cursor.isBefore(end)) {
+            val day = cursor.atZone(zone).toLocalDate()
+            val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant()
+            val sliceEnd = if (end.isBefore(dayEnd)) end else dayEnd
+            val frac = (sliceEnd.toEpochMilli() - cursor.toEpochMilli()).toDouble() / dur.toDouble()
+            if (frac > 0) into[day] = (into[day] ?: 0.0) + amount * frac
+            cursor = sliceEnd
+        }
     }
 
     /** Whole session on the local date it ended (the morning you woke), overlaps merged. */
@@ -160,11 +274,8 @@ class HealthPlugin : Plugin() {
         end: Instant,
         zone: ZoneId,
     ): Map<LocalDate, Int> = try {
-        val response = hc.readRecords(
-            ReadRecordsRequest(SleepSessionRecord::class, TimeRangeFilter.between(start, end))
-        )
         val spans = mutableMapOf<LocalDate, MutableList<Pair<Long, Long>>>()
-        for (rec in response.records) {
+        for (rec in readAll(hc, SleepSessionRecord::class, start, end)) {
             if (!rec.endTime.isAfter(rec.startTime)) continue
             val day = rec.endTime.atZone(zone).toLocalDate()
             spans.getOrPut(day) { mutableListOf() }
@@ -195,10 +306,11 @@ class HealthPlugin : Plugin() {
         return (total / 60000L).toInt()
     }
 
-    private fun result(available: Boolean, granted: Boolean): JSObject {
+    private fun result(available: Boolean, granted: Boolean, full: Boolean = false): JSObject {
         val o = JSObject()
         o.put("available", available)
         o.put("granted", granted)
+        o.put("full", full)
         return o
     }
 }
