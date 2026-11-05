@@ -27,14 +27,18 @@ import kotlinx.coroutines.runBlocking
 /**
  * Read-only bridge to Health Connect. Samsung Health writes steps, sleep and
  * total burned calories there once sharing is on. Exercise sessions are not
- * read — they would fight the workout log. Steps are summed from the records
- * themselves: the aggregate total stays empty when Samsung is not first in
- * Health Connect's source list.
+ * read — they would fight the workout log. Steps come from Samsung Health's own
+ * records. Summing every source double-counts the same walk (the phone pedometer
+ * on top of the watch), which is why the total ran ahead of Samsung Health.
  *
  * JS: registerPlugin('Health') → status(), request(), read().
  */
 @CapacitorPlugin(name = "Health")
 class HealthPlugin : Plugin() {
+
+    private companion object {
+        const val SAMSUNG_HEALTH = "com.sec.android.app.shealth"
+    }
 
     private fun wanted(): Set<String> = setOf(
         HealthPermission.getReadPermission(StepsRecord::class),
@@ -145,7 +149,12 @@ class HealthPlugin : Plugin() {
         return out
     }
 
-    /** Sum the step records. Aggregate stays empty when Samsung is not the priority source. */
+    /**
+     * Samsung Health's own step records, not the sum of every app that wrote steps.
+     * The phone sensor and the watch both record the same walk; adding them is how
+     * 3 046 in Samsung Health became 4 107 here. Overlapping stretches from the
+     * chosen source count once, at the higher rate.
+     */
     private suspend fun stepsByDay(
         hc: HealthConnectClient,
         start: Instant,
@@ -153,11 +162,7 @@ class HealthPlugin : Plugin() {
         zone: ZoneId,
     ): Map<LocalDate, Long> {
         val fromRecords = try {
-            val sums = mutableMapOf<LocalDate, Double>()
-            for (rec in readAll(hc, StepsRecord::class, start, end)) {
-                spread(rec.startTime, rec.endTime, rec.count.toDouble(), zone, sums)
-            }
-            sums.mapValues { kotlin.math.round(it.value).toLong() }
+            stepsFrom(recordsForSteps(readAll(hc, StepsRecord::class, start, end)), zone)
         } catch (_: Exception) {
             emptyMap()
         }
@@ -179,6 +184,78 @@ class HealthPlugin : Plugin() {
         } catch (_: Exception) {
             emptyMap()
         }
+    }
+
+    private fun recordsForSteps(all: List<StepsRecord>): List<StepsRecord> {
+        if (all.isEmpty()) return all
+        fun pkg(rec: StepsRecord) = rec.metadata.dataOrigin.packageName
+        val exact = all.filter { pkg(it) == SAMSUNG_HEALTH }
+        if (exact.isNotEmpty()) return exact
+        val samsung = all.filter { isSamsungHealth(pkg(it)) }
+        val pool = if (samsung.isNotEmpty()) samsung else all
+        val byPkg = pool.groupBy { pkg(it) }
+        if (byPkg.size <= 1) return pool
+        return byPkg.maxByOrNull { (_, recs) -> recs.sumOf { it.count } }?.value ?: pool
+    }
+
+    private fun isSamsungHealth(pkg: String): Boolean {
+        if (pkg == SAMSUNG_HEALTH) return true
+        val p = pkg.lowercase()
+        return p.contains("shealth") || (p.contains("samsung") && p.contains("health"))
+    }
+
+    /** Clip each record onto local days, then collapse overlaps so one walk is one count. */
+    private fun stepsFrom(records: List<StepsRecord>, zone: ZoneId): Map<LocalDate, Long> {
+        val byDay = mutableMapOf<LocalDate, MutableList<Triple<Long, Long, Double>>>()
+        for (rec in records) {
+            val dur = rec.endTime.toEpochMilli() - rec.startTime.toEpochMilli()
+            if (dur <= 0L || rec.count <= 0L) continue
+            var cursor = rec.startTime
+            while (cursor.isBefore(rec.endTime)) {
+                val day = cursor.atZone(zone).toLocalDate()
+                val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant()
+                val sliceEnd = if (rec.endTime.isBefore(dayEnd)) rec.endTime else dayEnd
+                val sliceMs = sliceEnd.toEpochMilli() - cursor.toEpochMilli()
+                if (sliceMs > 0L) {
+                    val count = rec.count.toDouble() * sliceMs.toDouble() / dur.toDouble()
+                    byDay.getOrPut(day) { mutableListOf() }
+                        .add(Triple(cursor.toEpochMilli(), sliceEnd.toEpochMilli(), count))
+                }
+                cursor = sliceEnd
+            }
+        }
+        return byDay.mapNotNull { (day, slices) ->
+            val steps = kotlin.math.round(mergedSteps(slices)).toLong()
+            if (steps > 0L) day to steps else null
+        }.toMap()
+    }
+
+    /** Where intervals overlap, keep the higher step rate instead of adding both. */
+    private fun mergedSteps(slices: List<Triple<Long, Long, Double>>): Double {
+        data class Ev(val t: Long, val rate: Double, val start: Boolean)
+        val events = ArrayList<Ev>(slices.size * 2)
+        for ((a, b, count) in slices) {
+            val dur = b - a
+            if (dur <= 0L || count <= 0.0) continue
+            val rate = count / dur.toDouble()
+            events.add(Ev(a, rate, true))
+            events.add(Ev(b, rate, false))
+        }
+        if (events.isEmpty()) return 0.0
+        events.sortWith(compareBy<Ev>({ it.t }, { if (it.start) 1 else 0 }))
+        val active = ArrayList<Double>()
+        var total = 0.0
+        var prev = events[0].t
+        for (ev in events) {
+            if (ev.t > prev && active.isNotEmpty()) {
+                var max = 0.0
+                for (rate in active) if (rate > max) max = rate
+                total += (ev.t - prev).toDouble() * max
+            }
+            if (ev.start) active.add(ev.rate) else active.remove(ev.rate)
+            prev = ev.t
+        }
+        return total
     }
 
     /**
