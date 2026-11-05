@@ -1198,6 +1198,28 @@ describe('workout compact view', () => {
     expect(container.querySelector('button[aria-label="More"]')).toBeTruthy()
   })
 
+  it('recaps the previous session of this rep line, not a later session of the other line', async () => {
+    const low = exercise('plain-bench', [false], {
+      target: { mode: 'reps', reps: 8, repsTop: 8, weight: 60, bodyweight: false },
+    })
+    await mount([low], 0, {
+      workouts: [
+        { d: '2026-10-07', entries: [{ id: 'plain-bench', target: { reps: 8, repsTop: 8, weight: 55 }, sets: [
+          { w: 55, r: 8, done: true }, { w: 60, r: 8, done: true }, { w: 60, r: 6, done: true },
+        ] }] },
+        { d: '2026-10-15', entries: [{ id: 'plain-bench', target: { reps: 12, repsTop: 12, weight: 50 }, sets: [
+          { w: 50, r: 12, done: true }, { w: 50, r: 12, done: true }, { w: 55, r: 12, done: true },
+        ] }] },
+      ],
+    })
+
+    expect(container.textContent).toContain('Last time')
+    expect(container.textContent).toContain('55×8')
+    expect(container.textContent).toContain('60×6')
+    expect(container.textContent).not.toContain('50×12')
+    expect(container.textContent).not.toContain('55×12')
+  })
+
   it('keeps those same elements in list mode (the strip is compact-only)', async () => {
     const state = {
       workoutView: 'list',

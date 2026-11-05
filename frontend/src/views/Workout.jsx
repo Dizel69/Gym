@@ -110,10 +110,14 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
     return { ...setClusterAt(row, ci, { r: v }), r: Math.max(0, (row.r || 0) + delta) }
   })
   const ex = exOr(entry.id)
-  const mode = modeOf({ ...(entry.target || {}), id: entry.id })
+  const cfg = { ...(entry.target || {}), id: entry.id }
+  const mode = modeOf(cfg)
   const cardio = mode === 'cardio'
   const timed = mode === 'time'
-  const last = lastEntryFor(S, entry.id)
+  // "Last time" follows the rep line the progression already uses. An 8-rep day
+  // must not recap the later 12-rep session of the same exercise.
+  const lineReps = Number(cfg.repsTop) > 0 ? Number(cfg.repsTop) : cfg.reps
+  const last = lastEntryFor(S, entry.id, { ...cfg, reps: lineReps })
   const standingNote = exNoteFor(S, entry.id)
   // Only worth surfacing while there is still work left: once the exercise is finished, a note
   // telling you what to do in it is behind you, and the block is already long.
@@ -132,7 +136,6 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
   // A bodyweight set has no weight to type, so the column is not there (issue #32) — one
   // stepper instead of two, which is the whole point of the flag. Adding a belt weight in the
   // config brings it back, now labelled as the addition it is.
-  const cfg = { ...(entry.target || {}), id: entry.id }
   const bw = !cardio && isBw(cfg)
   // A unilateral exercise logs each side on its own (issue #60): work rows render as an L and an
   // R sub-row, each with its own weight/reps/effort and done tick. Warm-ups stay single.
