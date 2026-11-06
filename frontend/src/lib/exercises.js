@@ -5,12 +5,34 @@ import { t, getVersion, exerciseNameSearchText } from './i18n-core.js'
 
 export { EXDB }
 
+// A chest or shoulder press protracts the scapula, so serratus works even when the
+// dataset left it off. French press, skull crushers and leg or calf presses do not.
+function pressUsesSerratus(ex) {
+  const n = String(ex?.n || '').toLowerCase()
+  if (!/\bpress\b/.test(n)) return false
+  if (ex?.bp === 'upper legs' || ex?.bp === 'lower legs' || ex?.bp === 'waist') return false
+  if (/\b(french|skull|tate)\b/.test(n) || /\btriceps press\b/.test(n) || /\belbow press\b/.test(n)) return false
+  if (ex?.bp === 'chest' || ex?.bp === 'shoulders' || ex?.bp === 'full body') return true
+  return ex?.bp === 'upper arms' && /\b(bench|floor|military|overhead|shoulder)\b/.test(n)
+}
+
+function withSerratus(ex) {
+  if (!pressUsesSerratus(ex)) return ex
+  if (Array.isArray(ex.secondaries)) {
+    if (ex.secondaries.includes('serratus') || ex.secondaries.includes('serratus anterior')) return ex
+    return { ...ex, secondaries: [...ex.secondaries, 'serratus'] }
+  }
+  const sm = Array.isArray(ex.sm) ? ex.sm : (ex.sm ? [ex.sm] : [])
+  if (sm.some(s => String(s).toLowerCase().includes('serratus'))) return ex
+  return { ...ex, sm: [...sm, 'serratus anterior'] }
+}
+
 // The generated dataset remains the compatibility/raw export. The runtime catalogue applies
 // owner-approved muscle metadata as a narrow overlay, so imports and historical tests that rely
 // on the upstream shape keep working while EXIDX and pickers see the corrected model.
 const catalogueExercise = ex => {
   const metadata = exerciseMuscleMetadataFor(ex?.id)
-  if (!Object.keys(metadata).length) return ex
+  if (!Object.keys(metadata).length) return withSerratus(ex)
   const out = { ...ex, ...metadata }
   const user = USER_EXERCISE_MUSCLE_OVERRIDES[ex?.id] || {}
   // A future dataset row may carry explicit arrays of its own; preserve those over generated
@@ -20,7 +42,7 @@ const catalogueExercise = ex => {
   }
   if (Array.isArray(out.primaries)) out.primaries = [...out.primaries]
   if (Array.isArray(out.secondaries)) out.secondaries = [...out.secondaries]
-  return out
+  return withSerratus(out)
 }
 
 export const CATALOGUE = [...EXDB.map(catalogueExercise), ...KETTLEBELL_EXTRA.map(catalogueExercise)]

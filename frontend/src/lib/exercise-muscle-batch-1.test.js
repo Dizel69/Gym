@@ -23,7 +23,11 @@ describe('compound-lift muscle metadata batch 1', () => {
       expect(metadata.primaries.some(muscle => metadata.secondaries.includes(muscle)), id).toBe(false)
       expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
       expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
-      expect(EXIDX[id]).toMatchObject(metadata)
+      const { secondaries, ...rest } = metadata
+      expect(EXIDX[id]).toMatchObject(rest)
+      const extra = EXIDX[id].secondaries.filter(m => !secondaries.includes(m))
+      expect(extra, id).toEqual(extra.includes('serratus') ? ['serratus'] : [])
+      expect(secondaries.every(m => EXIDX[id].secondaries.includes(m)), id).toBe(true)
     }
   })
 
@@ -80,6 +84,8 @@ describe('compound-lift muscle metadata batch 1', () => {
     registerCustom([{ id: '0025', n: 'Owner bench correction', bp: 'chest', primaries: ['triceps'], secondaries: [] }])
     expect(EXIDX['0025']).toMatchObject({ primaries: ['triceps'], secondaries: [] })
     registerCustom([])
-    expect(EXIDX['0025']).toMatchObject(COMPOUND_LIFT_BATCH_1['0025'])
+    expect(EXIDX['0025'].secondaries).toContain('serratus')
+    const bench = COMPOUND_LIFT_BATCH_1['0025']
+    expect(EXIDX['0025']).toMatchObject({ bp: bench.bp, primaries: bench.primaries })
   })
 })

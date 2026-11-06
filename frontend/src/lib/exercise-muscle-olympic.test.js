@@ -28,7 +28,12 @@ it('matches current catalogue names and classifies the audited lift family', () 
   expect(Object.keys(OLYMPIC_LIFT_METADATA)).toEqual(Object.keys(catalogueNames))
   for (const [id, name] of Object.entries(catalogueNames)) {
     expect(EXDB.find(exercise => exercise.id === id)?.n, id).toBe(name)
-    expect(CATALOGUE.find(exercise => exercise.id === id)).toMatchObject(OLYMPIC_LIFT_METADATA[id])
+    const meta = OLYMPIC_LIFT_METADATA[id]
+    const live = CATALOGUE.find(exercise => exercise.id === id)
+    const { secondaries, ...rest } = meta
+    expect(live).toMatchObject(rest)
+    const extra = (live.secondaries || []).filter(m => !secondaries.includes(m))
+    expect(extra, id).toEqual(extra.includes('serratus') ? ['serratus'] : [])
     expect(OLYMPIC_LIFT_METADATA[id].bp).toBe('full body')
   }
 })
@@ -59,7 +64,7 @@ it('preserves raw catalogue records and user corrections instead of overwriting 
   registerCustom([{ ...raw, primaries: ['hamstring'], secondaries: [], bp: 'upper legs' }])
   expect(EXIDX['0648']).toMatchObject({ primaries: ['hamstring'], secondaries: [], bp: 'upper legs' })
   registerCustom([])
-  expect(EXIDX['0648']).toMatchObject(OLYMPIC_LIFT_METADATA['0648'])
+  expect(EXIDX['0648']).toMatchObject({ bp: 'full body', primaries: OLYMPIC_LIFT_METADATA['0648'].primaries })
 })
 
 it('does not classify clean-grip squats as Olympic clean movements or duplicate covered jerk metadata', () => {

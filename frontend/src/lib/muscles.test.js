@@ -78,7 +78,18 @@ describe('catalogue secondary muscles', () => {
       chest: 1,
       triceps: 0.4,
       'front-deltoid': 0.4,
+      serratus: 0.4,
     })
+  })
+
+  it('shades serratus on chest and shoulder presses, not on leg or french presses', () => {
+    expect(musclesOf(EXIDX['0314']).serratus).toBe(0.4) // dumbbell incline bench press
+    expect(musclesOf(EXIDX['0577']).serratus).toBe(0.4) // lever chest press
+    expect(musclesOf(EXIDX['0405']).serratus).toBe(0.4) // dumbbell seated shoulder press
+    expect(musclesOf(EXIDX['0043']).serratus).toBeUndefined()
+    expect(musclesOf({ n: 'sled 45° leg press', bp: 'upper legs', tg: 'quads' }).serratus).toBeUndefined()
+    expect(musclesOf({ n: 'ez bar standing french press', bp: 'upper arms', tg: 'triceps' }).serratus).toBeUndefined()
+    expect(musclesOf(EXIDX['0027']).serratus).toBeUndefined() // barbell bent over row
   })
 
   it('maps a squat to glutes, quads and hamstrings', () => {
@@ -229,7 +240,7 @@ describe('muscle balance windows and ranking', () => {
   it('keeps catalogue precedence and deleted-custom snapshot weights', () => {
     const known = { id: '0025', muscleGroups: ['quadriceps'], sets: [{ done: true }] }
     const deleted = { id: 'deleted', muscleSnapshot: { muscleWeights: { chest: 1 } }, sets: [{ done: true }] }
-    expect(loadOfWorkouts([{ entries: [known] }])).toEqual({ chest: 1, triceps: 0.4, 'front-deltoid': 0.4, biceps: 0.4 })
+    expect(loadOfWorkouts([{ entries: [known] }])).toEqual({ chest: 1, triceps: 0.4, 'front-deltoid': 0.4, biceps: 0.4, serratus: 0.4 })
     expect(loadOfWorkouts([{ entries: [deleted] }])).toEqual({ chest: 1 })
   })
 })
