@@ -10,6 +10,7 @@ import { mergeStates, localExtras } from '../lib/sync-merge.js'
 import { loadRemote, chooseLocal, forgetRemote, connect } from '../lib/remote.js'
 import { loadCoachDevice, saveCoachDevice, coachDeviceSettings } from '../lib/coach-device.js'
 import { adoptLinearWorkoutWeights } from '../lib/progression.js'
+import { normalizeMeasurementsState } from '../lib/measurements.js'
 
 import { WC_DEFAULT } from '../lib/workout-controls.js'
 
@@ -24,7 +25,7 @@ const POLL_MS = 30000        // while the app is open and signed in, ask the ser
 export const DEF = {
   unit: 'kg', restSec: 90, restPauseSec: 15, sound: true, soundOnSilent: false, timerFlash: false, keepAwake: true, lang: 'en',
   theme: 'dark', accent: 'lime', body: 'male', targetW: null,
-  bodyweight: [], routines: [], week: {}, weekB: {}, weekCycle: 1, weekAnchor: null, dayPlan: {},
+  bodyweight: [], measurements: [], customMeasurements: [], routines: [], week: {}, weekB: {}, weekCycle: 1, weekAnchor: null, dayPlan: {},
   exWeights: {}, workouts: [], active: null, customEx: [], gifSize: 'full',
   // How the active workout is laid out — 'cards' (one exercise at a time with Prev/Next),
   // 'list' (every exercise stacked and scrollable) or 'compact' (that stack stripped to just
@@ -98,7 +99,7 @@ const clone = o => JSON.parse(JSON.stringify(o))
 function loadState() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return Object.assign(clone(DEF), JSON.parse(raw))
+    if (raw) return normalizeMeasurementsState(Object.assign(clone(DEF), JSON.parse(raw)))
   } catch (e) { /* ignore */ }
   return clone(DEF)
 }

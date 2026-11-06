@@ -13,6 +13,7 @@ import TodaySuggestion from '../components/TodaySuggestion.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { MOBILE } from '../lib/mobile.js'
 import { healthImportOn, sleepParts } from '../lib/health.js'
+import { readingCount } from '../lib/weigh-ins.js'
 import { healthStatus, requestHealthAccess, syncHealthIntoStore } from '../lib/health-sync.js'
 
 function sleepLabel(min) {
@@ -256,9 +257,14 @@ export default function Home() {
           </div>
         )}
         <div className="chart" style={{ marginTop: 8 }}><LineChart points={bwPoints} h={130} unit={S.unit} goal={S.targetW} /></div>
+        {readingCount(S.bodyweight.find(b => b.d === todayISO())) > 1 && <div className="small dim" style={{ marginTop: 4 }}>{t('{0} weigh-ins today', readingCount(S.bodyweight.find(b => b.d === todayISO())))}</div>}
       </> : <div className="muted small">{S.weighIn === false
         ? t('No entries yet — log your weight to start the curve.')
         : t("No entries yet — log your weight to start the curve. It's also asked before every workout.")}</div>}
+      <div className="row between" style={{ marginTop: 10, cursor: 'pointer' }} {...tappable(() => nav('/measurements'))}>
+        <span className="small">{t('Body measurements')}</span>
+        <Icon name="chevronRight" className="chev" />
+      </div>
     </div>
 
     <div className="card tappable" style={{ cursor: 'pointer' }} {...tappable(() => calendarSheet())}>

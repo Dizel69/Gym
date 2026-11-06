@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { EXIDX, matchExercise, betterWeight } from '../lib/exercises.js'
 import { lastBW, streakWeeks, setLabel, modeOf, effortOf, metricModeForEntry, metricRowsForEntry, bestWeightForEntry } from '../lib/history.js'
-import { fmtNum, fmtDate, fmtVol, todayISO, weekStartOf } from '../lib/format.js'
+import { fmtNum, fmtDate, fmtVol, fmtDur, todayISO, weekStartOf } from '../lib/format.js'
 import { t, exerciseNameFor, getLang } from '../lib/i18n.js'
 import { bwSheet, goalSheet, calendarSheet, workoutDetailSheet, exerciseHistorySheet, WorkoutRow, bwDeltaColor } from '../sheets.jsx'
 import LineChart from '../components/LineChart.jsx'
@@ -21,6 +21,7 @@ import {
   effortHistogram, isHardSet, HARD_RIR
 } from '../lib/effort.js'
 import { Button, Segmented, SelectRow } from '../components/ui.jsx'
+import { exerciseTimeRows } from '../lib/exercise-time.js'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { isWarmupRow } from '../lib/workout-model.js'
 
@@ -290,12 +291,21 @@ export default function Stats() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const [range, setRange] = useState(90)
+  const [timeWin, setTimeWin] = useState(30)
   const [exId, setExId] = useState(null)
   const [exMetric, setExMetric] = useState('top')
   const now = Date.now()
   const kind = displayScale(S)
   const hd = scaleName(kind)
 
+  const timeRows = useMemo(
+    () => exerciseTimeRows(S.workouts, timeWin ? now - timeWin * 86400000 : 0).slice(0, 8),
+    [S.workouts, timeWin, now],
+  )
+  const timeLabel = ms => {
+    const sec = Math.round((Number(ms) || 0) / 1000)
+    return sec < 60 ? t('{0} s', sec) : fmtDur(ms)
+  }
   const bwPts = S.bodyweight.filter(b => range === 0 || (b.t || new Date(b.d).getTime()) > now - range * 86400000)
     .map(b => ({ t: b.t || new Date(b.d).getTime(), y: b.w, d: b.d }))
   const bw30 = S.bodyweight.filter(b => (b.t || new Date(b.d).getTime()) > now - 30 * 86400000)
@@ -462,6 +472,7 @@ export default function Stats() {
           <div className="row" style={{ gap: 8 }}>
             <Button size="sm" icon="target" style={S.targetW ? { color: 'var(--yellow)' } : undefined} onClick={goalSheet}>{S.targetW ? fmtNum(S.targetW) : t('Goal')}</Button>
             <Button size="sm" icon="plus" onClick={() => bwSheet()}>{t('Log')}</Button>
+            <Button size="sm" variant="ghost" onClick={() => nav('/measurements')}>{t('Measurements')}</Button>
           </div>
         </div>
         <Segmented className="seg-range" value={range} onChange={setRange}
@@ -502,6 +513,17 @@ export default function Stats() {
           </div>}
         </> : <div className="muted small">{t('Finish your first workout to see progress curves here.')}</div>}
       </div>
+    </div>
+
+    <div className="card">
+      <h2>{t('Time per exercise')}</h2>
+      <div className="small dim" style={{ margin: '-4px 0 8px' }}>{t('Average per workout, rest included.')}</div>
+      <Segmented className="seg-range" value={timeWin} onChange={setTimeWin}
+        options={[{ value: 30, label: '1M' }, { value: 90, label: '3M' }, { value: 365, label: '1Y' }, { value: 0, label: t('All') }]} />
+      {timeRows.length ? timeRows.map(row => <div key={row.id} className="row between small" style={{ padding: '7px 0', borderBottom: 'var(--hair) solid var(--sep)' }}>
+        <span className="capitalize">{nameOf(row.id)}</span>
+        <span className="dim">{timeLabel(row.avg)}{row.sessions > 1 ? ' · ×' + row.sessions : ''}</span>
+      </div>) : <div className="muted small">{t('Times show up once sets are ticked in the app. Imported history has none.')}</div>}
     </div>
 
     {workouts.length > 0 && <>

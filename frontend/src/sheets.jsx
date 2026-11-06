@@ -30,6 +30,8 @@ import { sessionPrescription, writeLinearPlanWeights, applyPrescription, policyF
 import { normalizeRepRange } from './lib/rep-range.js'
 import { MOBILE, shareExport, printHtml } from './lib/mobile.js'
 import { buildCompletedWorkout } from './lib/finish-workout.js'
+import { addWeighIn, allReadings, dailyModeOf, readingTime, removeWeighIn, settleAll, timeOf } from './lib/weigh-ins.js'
+import { entryTimes } from './lib/exercise-time.js'
 import { isWarmupRow, hasCompletedWork } from './lib/workout-model.js'
 import { nextUnfinishedUnit } from './lib/supersetFlow.js'
 import { swapActiveExercise } from './lib/active-exercise-swap.js'
@@ -203,20 +205,18 @@ function BwSheet({ required, onDone, close }) {
   const unit = st.unit
   const bw = lastBW(st)
   const [v, setV] = useState(bw ? bw.w : 70)
+  const [at, setAt] = useState(() => timeOf(Date.now()))
+  const mode = dailyModeOf(st)
   const save = () => {
     const n = Math.round((v || 0) * 10) / 10
     if (!n || n <= 0) { toast(t('Enter a valid weight')); return }
-    update(s => {
-      const iso = todayISO()
-      const ex = s.bodyweight.find(b => b.d === iso)
-      if (ex) { ex.w = n; ex.t = Date.now() } else s.bodyweight.push({ d: iso, w: n, t: Date.now() })
-      s.bodyweight.sort((a, b) => (a.d < b.d ? -1 : 1))
-    })
+    update(s => { addWeighIn(s, { d: todayISO(), at, w: n }) })
     close()
     if (onDone) onDone(n); else toast(t('Weight saved'))
   }
-  const recent = [...st.bodyweight].reverse().slice(0, 3)
-  const delEntry = d => update(s => { s.bodyweight = s.bodyweight.filter(b => b.d !== d) })
+  const recent = [...allReadings(st.bodyweight)].reverse().slice(0, 8)
+  const delEntry = (d, id) => update(s => { removeWeighIn(s, d, id) })
+  const setMode = next => update(s => { s.bwDaily = next; settleAll(s, next) })
   return <>
     {/* This sheet opens `locked` — swipe/backdrop/Escape/Android-back all no-op on it (see
         Modals.jsx) so an accidental tap on "Start" can't be walked back by reflex the way
@@ -232,6 +232,18 @@ function BwSheet({ required, onDone, close }) {
       : <h3>{t('Log body weight')}</h3>}
     <div className="muted small">{required ? t('Slide or tap to set your weight — tracked before every workout so your curve stays honest.') : t('Today') + ', ' + fmtDate(todayISO(), true)}</div>
     <WeightInput value={v} setValue={setV} unit={unit} />
+    <label className="row between" style={{ marginTop: 10 }}>
+      <span className="small muted">{t('Time')}</span>
+      <input type="time" className="input" value={at || ''} onChange={e => setAt(e.target.value)} style={{ width: 120 }} />
+    </label>
+    {!required && <div style={{ marginTop: 10 }}>
+      <div className="small dim" style={{ marginBottom: 6 }}>{t('A day can hold several weigh-ins. The chart uses one daily value.')}</div>
+      <Segmented value={mode} onChange={setMode} options={[
+        { value: 'first', label: t('First') },
+        { value: 'avg', label: t('Average') },
+        { value: 'last', label: t('Last') },
+      ]} />
+    </div>}
     <div style={{ height: 14 }} />
     <Button variant="primary" onClick={save}>{required ? t('Save & start workout') : t('Save')}</Button>
     {required && <>
@@ -241,10 +253,10 @@ function BwSheet({ required, onDone, close }) {
     {!required && recent.length > 0 && <>
       <h4 className="sec">{t('Recent weigh-ins')}</h4>
       <div className="list" style={{ gap: 0 }}>
-        {recent.map(b => <div key={b.d} className="row between" style={{ padding: '9px 2px', borderBottom: '1px solid var(--sep)' }}>
-          <span className="small muted">{fmtDate(b.d, true)}</span>
+        {recent.map(b => <div key={b.d + b.id} className="row between" style={{ padding: '9px 2px', borderBottom: '1px solid var(--sep)' }}>
+          <span className="small muted">{fmtDate(b.d, true)}{readingTime(b) ? ' · ' + readingTime(b) : ''}</span>
           <span className="row" style={{ gap: 12 }}><b>{fmtNum(b.w)} {unit}</b>
-            <button className="iconbtn" style={{ width: 32, height: 30, borderRadius: 8, fontSize: 15, color: 'var(--red)' }} onClick={() => delEntry(b.d)} aria-label="delete"><Icon name="trash" /></button></span>
+            <button className="iconbtn" style={{ width: 32, height: 30, borderRadius: 8, fontSize: 15, color: 'var(--red)' }} onClick={() => delEntry(b.d, b.id)} aria-label="delete"><Icon name="trash" /></button></span>
         </div>)}
       </div>
     </>}
@@ -1719,12 +1731,18 @@ function WorkoutDetail({ w, close }) {
   }, [])
   // A combined session's entries carry a `rid`; group them into per-routine sections in merge
   // order. A legacy single-routine workout (one routineIds, or no rid anywhere) renders flat.
+  const times = entryTimes(w)
+  const timeLabel = ms => {
+    const sec = Math.round((Number(ms) || 0) / 1000)
+    return sec < 60 ? t('{0} s', sec) : fmtDur(ms)
+  }
   const entryRow = (e, i) => {
     const ex = EXIDX[e.id]
     return <div key={i} className="row" style={{ marginBottom: 12, alignItems: 'flex-start' }}>
       {ex && <Thumb ex={ex} />}
       <div className="grow"><div className="tt capitalize" style={{ fontWeight: 600 }}>{ex ? exerciseNameFor(ex) : (e.n || e.id)} {w.prs && w.prs.includes(e.id) && <span className="pr"><Icon name="trophy" />PR</span>}</div>
         <div className="ss">{e.sets.filter(hasCompletedWork).map(s => setLabel(e.id, s, e.target)).join('  ·  ') || t('no sets')}</div>
+        {times[i] >= 1000 && <div className="small dim" style={{ marginTop: 2 }}>{timeLabel(times[i])}</div>}
         {e.note && <div className="small dim" style={{ marginTop: 3 }}>
           {e.notePin && <Icon name="flag" style={{ fontSize: 12, marginRight: 4, verticalAlign: '-1px', color: 'var(--yellow)' }} />}{e.note}
         </div>}</div>

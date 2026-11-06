@@ -25,6 +25,8 @@
  */
 import { beatsWeight } from './exercises.js'
 import { mergeHealthDays } from './health.js'
+import { mergeDay } from './weigh-ins.js'
+import { normalizeMeasurementsState } from './measurements.js'
 
 const clone = o => JSON.parse(JSON.stringify(o))
 const list = v => (Array.isArray(v) ? v : [])
@@ -52,13 +54,18 @@ export function unionById(newer = [], older = [], key = x => x?.id) {
 const workoutKey = w => (w?.id != null ? w.id : `${w?.d}|${w?.start}`)
 const byDayStart = (a, b) => (a.d === b.d ? (a.start || 0) - (b.start || 0) : a.d < b.d ? -1 : 1)
 
-/** One entry per day; where both have a day, the one edited later (`t`); sorted by day. */
+/** One entry per day. Readings on either side are merged; a plain day still keeps the later edit. */
 export function mergeBodyweight(a = [], b = []) {
   const byDay = new Map()
   for (const e of [...list(a), ...list(b)]) {
     if (!e || e.d == null) continue
     const cur = byDay.get(e.d)
-    if (!cur || (e.t || 0) > (cur.t || 0)) byDay.set(e.d, e)
+    if (!cur) { byDay.set(e.d, e); continue }
+    if (Array.isArray(cur.ins) || Array.isArray(e.ins)) {
+      const merged = mergeDay(cur, e)
+      if (merged) byDay.set(e.d, merged)
+      else byDay.delete(e.d)
+    } else if ((e.t || 0) > (cur.t || 0)) byDay.set(e.d, e)
   }
   return [...byDay.values()].sort((x, y) => (x.d < y.d ? -1 : 1))
 }
@@ -91,6 +98,12 @@ export function mergeStates(a, b, { prefer } = {}) {
     if (list(n[f]).length || list(o[f]).length) out[f] = unionById(n[f], o[f]).map(clone)
   }
   out.bodyweight = mergeBodyweight(n.bodyweight, o.bodyweight).map(clone)
+  if (list(n.measurements).length || list(o.measurements).length || list(n.customMeasurements).length || list(o.customMeasurements).length) {
+    out.measurements = [...list(o.measurements), ...list(n.measurements)]
+    out.customMeasurements = unionById(n.customMeasurements, o.customMeasurements).map(clone)
+    if (n.measurementEnabled || o.measurementEnabled) out.measurementEnabled = n.measurementEnabled || o.measurementEnabled
+    normalizeMeasurementsState(out)
+  }
   if (list(n.healthDays).length || list(o.healthDays).length) {
     out.healthDays = mergeHealthDays(o.healthDays, n.healthDays)
   }
