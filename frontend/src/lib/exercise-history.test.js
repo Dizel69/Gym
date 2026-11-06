@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { exerciseHistory, planWeightPoints, HISTORY_SESSIONS } from './exercise-history.js'
+import { exerciseHistory, planWeightPoints, HISTORY_SESSIONS, PLAN_WEIGHT_POINTS } from './exercise-history.js'
 import { estimate1RM } from './onerm.js'
 
 const DAY = 86400000
@@ -130,5 +130,15 @@ describe('planWeightPoints', () => {
       entries: [{ id: 'bench', target: { sets: 1, reps: 12, weight: 50 }, sets: [warm(80, 8), work(50, 12), work(60, 12, false)] }],
     }] }
     expect(planWeightPoints(S, { id: 'bench', reps: 12, weight: 50 }).map(p => p.y)).toEqual([50])
+  })
+
+  it('keeps only the last ten workouts', () => {
+    const S = { workouts: Array.from({ length: 12 }, (_, i) => on(i, 12, [40 + i])) }
+    const pts = planWeightPoints(S, { id: 'bench', reps: 12, weight: 40 })
+    expect(PLAN_WEIGHT_POINTS).toBe(10)
+    expect(pts).toHaveLength(10)
+    expect(pts.map(p => p.y)).toEqual([42, 43, 44, 45, 46, 47, 48, 49, 50, 51])
+    expect(pts[0].d).toBe(iso(2))
+    expect(pts.at(-1).d).toBe(iso(11))
   })
 })

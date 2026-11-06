@@ -103,6 +103,17 @@ describe('LineChart hover state', () => {
   })
 })
 
+describe('LineChart day labels', () => {
+  it('labels at least five workout dates instead of the months they fall in', () => {
+    const days = [1, 8, 15, 22, 29, 5].map((day, i) => point(i < 5 ? 2026 : 2026, i < 5 ? 8 : 9, day, 40 + i * 5))
+    renderChart(days, { axes: true, dayLabels: true })
+    const labels = [...container.querySelectorAll('svg text')].map(n => n.textContent).filter(txt => /\d/.test(txt) && /[A-Za-zА-Яа-я]/.test(txt))
+    expect(labels.length).toBeGreaterThanOrEqual(5)
+    expect(labels.some(txt => txt.startsWith('1 '))).toBe(true)
+    expect(labels.some(txt => txt.startsWith('5 '))).toBe(true)
+  })
+})
+
 describe('LineChart plateau', () => {
   it('draws a dashed segment only where the weight stays the same', () => {
     renderChart([point(2026, 8, 1, 45), point(2026, 8, 15, 50), point(2026, 9, 1, 50), point(2026, 10, 1, 55)], { dashFlat: true, dots: true })

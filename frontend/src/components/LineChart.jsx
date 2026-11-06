@@ -12,7 +12,7 @@ const W = 340   // viewBox width; the svg stretches to its container, height com
 // opts: { h, unit, color, axes, goal, invert }
 //   invert flips the y axis, for a scale that counts down as it gets harder (RIR). Without it
 //   a curve of reps-in-reserve reads upside down, with the hardest sets at the floor.
-export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false, dashFlat = false, dots = false }) {
+export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false, dashFlat = false, dots = false, dayLabels = false }) {
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
   const tipRef = useRef(null)
@@ -75,21 +75,41 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
     }
     const d0 = new Date(t0), d1 = new Date(t1)
     const ticks = []
-    let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1)
-    while (m <= d1) { ticks.push({ t: +m, txt: t(MONTHS[m.getMonth()]) }); m = new Date(m.getFullYear(), m.getMonth() + 1, 1) }
-    if (ticks.length === 0 && !single) {
-      for (let i = 0; i <= 2; i++) {
-        const tv = t0 + (t1 - t0) * i / 2, dd = new Date(tv)
-        ticks.push({ t: tv, txt: dd.getDate() + ' ' + t(MONTHS[dd.getMonth()]), anchor: i === 0 ? 'start' : i === 2 ? 'end' : 'middle' })
+    // The plan's weight chart labels the workouts themselves. Month names hid
+    // a run of sessions behind two ticks, so a stretch of five dates looked
+    // like two days.
+    if (dayLabels && !single) {
+      const maxLabels = 5
+      const want = points.length <= maxLabels ? points.length : maxLabels
+      const indexes = []
+      for (let i = 0; i < want; i++) indexes.push(Math.round(i * (points.length - 1) / Math.max(1, want - 1)))
+      ;[...new Set(indexes)].forEach((idx, n, all) => {
+        const p = points[idx]
+        const dd = new Date(p.d ? p.d + 'T12:00:00' : p.t)
+        ticks.push({
+          t: p.t,
+          txt: dd.getDate() + ' ' + t(MONTHS[dd.getMonth()]),
+          anchor: n === 0 ? 'start' : n === all.length - 1 ? 'end' : 'middle',
+        })
+      })
+    }
+    if (!ticks.length) {
+      let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1)
+      while (m <= d1) { ticks.push({ t: +m, txt: t(MONTHS[m.getMonth()]) }); m = new Date(m.getFullYear(), m.getMonth() + 1, 1) }
+      if (ticks.length === 0 && !single) {
+        for (let i = 0; i <= 2; i++) {
+          const tv = t0 + (t1 - t0) * i / 2, dd = new Date(tv)
+          ticks.push({ t: tv, txt: dd.getDate() + ' ' + t(MONTHS[dd.getMonth()]), anchor: i === 0 ? 'start' : i === 2 ? 'end' : 'middle' })
+        }
       }
     }
-    const every = Math.max(1, Math.ceil(ticks.length / 7))
+    const every = dayLabels ? 1 : Math.max(1, Math.ceil(ticks.length / 7))
     ticks.forEach((tk, i) => {
       if (i % every) return
       const x = X(tk.t)
       gridlines.push(<g key={'x' + i}>
         <line x1={x} y1={P.t} x2={x} y2={H - P.b} stroke="var(--sep-op)" strokeWidth="1" strokeDasharray="2 4" />
-        <text x={x} y={H - 7} textAnchor={tk.anchor || 'middle'} fontSize="9.5" fill="var(--label-2)">{tk.txt}</text>
+        <text x={x} y={H - 7} textAnchor={tk.anchor || 'middle'} fontSize={ticks.length > 6 ? 8 : 9.5} fill="var(--label-2)">{tk.txt}</text>
       </g>)
     })
   }

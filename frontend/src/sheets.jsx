@@ -1422,7 +1422,7 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
     {weightPoints.length > 0 && <>
       <h4 className="sec">{t('Weight by workout')}</h4>
       <div className="chart">
-        <LineChart points={weightPoints} h={150} unit={st.unit} dashFlat dots />
+        <LineChart points={weightPoints} h={160} unit={st.unit} dashFlat dots dayLabels />
       </div>
       {weightPlateau && <div className="small dim" style={{ marginTop: 6 }}>{t('The same weight runs as a dashed line from that date.')}</div>}
       <div style={{ height: 18 }} />
