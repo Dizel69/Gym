@@ -136,7 +136,8 @@ function cleanIntensifier(x) {
 
 // The muscles the map can draw, plus the one label the form gives a cardio exercise.
 const CUSTOM_MUSCLES = new Set([...MUSCLES, 'cardiovascular system'])
-const muscleList = v => inMuscleOrder([...new Set((Array.isArray(v) ? v : []).filter(m => CUSTOM_MUSCLES.has(m)))])
+const asCalf = m => m === 'tibialis' ? 'calves' : m
+const muscleList = v => inMuscleOrder([...new Set((Array.isArray(v) ? v : []).map(asCalf).filter(m => CUSTOM_MUSCLES.has(m)))])
 
 /** A custom exercise with its own metadata — equipment, muscles, description — in the shape
  *  CustomExForm writes, minus the recipient-side `custom`/`sm` fields mergePlan adds. The bundle
@@ -152,7 +153,8 @@ function cleanCustom(c) {
   const prim = muscleList(c.primaries)
   const sm = muscleList(c.secondaries).filter(m => !prim.includes(m))
   // `tg` is the legacy single primary; the form keeps it equal to the first primary.
-  const tg = prim[0] || (CUSTOM_MUSCLES.has(c.tg) ? c.tg : '')
+  const tgName = asCalf(c.tg)
+  const tg = prim[0] || (CUSTOM_MUSCLES.has(tgName) ? tgName : '')
   if (tg) o.tg = tg
   if (prim.length) o.primaries = prim
   if (sm.length) o.secondaries = sm

@@ -100,6 +100,15 @@ describe('catalogue secondary muscles', () => {
     })
   })
 
+  it('counts the shin with the calves', () => {
+    expect(musclesOf(EXIDX['1379'])).toEqual({ calves: 1, hamstring: 0.4 })
+    expect(musclesOf(EXIDX['1396'])).toEqual({ calves: 1 })
+    expect(musclesOf({ bp: 'lower legs' })).toEqual({ calves: 1 })
+    expect(musclesOf({ muscleWeights: { calves: 1, tibialis: 0.4 } })).toEqual({ calves: 1 })
+    expect(musclesOf({ muscleWeights: { tibialis: 0.4 } })).toEqual({ calves: 0.4 })
+    expect(musclesOf(EXIDX['1379']).tibialis).toBeUndefined()
+  })
+
   it('maps common row variations to the upper back, biceps and rear deltoids', () => {
     for (const id of ['0027', '0293', '0499', '0861']) {
       expect(musclesOf(EXIDX[id])).toMatchObject({

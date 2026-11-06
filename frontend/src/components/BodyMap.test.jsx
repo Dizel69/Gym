@@ -63,6 +63,21 @@ describe('BodyMap interaction semantics', () => {
     expect(event.defaultPrevented).toBe(key === ' ')
   })
 
+  it('paints the shin outline with the calves and selects calves from it', async () => {
+    const onMuscle = vi.fn()
+    await renderMap({ load: { calves: 4 }, onMuscle })
+    const shins = [...container.querySelectorAll('[data-region="tibialis"]')]
+    const calves = [...container.querySelectorAll('[data-region="calves"]')]
+    expect(shins.length).toBeGreaterThan(0)
+    expect(calves.length).toBeGreaterThan(0)
+    expect(shins.every(path => path.classList.contains('l4'))).toBe(true)
+    expect(calves.every(path => path.classList.contains('l4'))).toBe(true)
+    expect(shins.every(path => path.getAttribute('aria-label') === 'Calves')).toBe(true)
+
+    act(() => shins[0].dispatchEvent(new MouseEvent('click', { bubbles: true })))
+    expect(onMuscle).toHaveBeenCalledWith('calves')
+  })
+
   it('labels the existing legend direction for assistive technology', () => {
     act(() => root.render(<BodyMapLegend />))
     expect(container.querySelector('.hm-legend').getAttribute('aria-label')).toBe('Less More')

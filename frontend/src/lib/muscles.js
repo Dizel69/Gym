@@ -19,7 +19,7 @@ export const MUSCLES = [
   'biceps', 'triceps', 'forearm',
   'abs', 'obliques', 'lower-back',
   'gluteal', 'quadriceps', 'hamstring', 'adductors', 'hip-flexors',
-  'calves', 'tibialis',
+  'calves',
 ]
 
 // A picked list in the map's own order rather than the order the chips were tapped in — two
@@ -41,7 +41,7 @@ export const MUSCLE_NAME = {
   serratus: 'Serratus', biceps: 'Biceps', triceps: 'Triceps', forearm: 'Forearms',
   abs: 'Abs', obliques: 'Obliques', 'lower-back': 'Lower back', gluteal: 'Glutes',
   quadriceps: 'Quads', hamstring: 'Hamstrings', adductors: 'Adductors',
-  'hip-flexors': 'Hip flexors', calves: 'Calves', tibialis: 'Shins', 'cardiovascular system': 'cardiovascular system',
+  'hip-flexors': 'Hip flexors', calves: 'Calves', 'cardiovascular system': 'cardiovascular system',
 }
 
 // Every spelling that occurs in the dataset's `tg` and `sm` fields. null = not drawable.
@@ -63,7 +63,9 @@ const ALIAS = {
   'lower abs': 'abs', chest: 'chest', 'upper chest': 'chest', 'hip flexors': 'hip-flexors',
   obliques: 'obliques', 'lower back': 'lower-back', rhomboids: 'upper-back',
   trapezius: 'trapezius', back: 'upper-back', 'latissimus dorsi': 'upper-back',
-  brachialis: 'biceps', soleus: 'calves', shins: 'tibialis', wrists: 'forearm',
+  // The shin outline stays on the drawing and is painted with the calves.
+  // It is not its own muscle: a calf raise colours both, a squat only as much as it colours the calves.
+  brachialis: 'biceps', soleus: 'calves', shins: 'calves', tibialis: 'calves', wrists: 'forearm',
   'wrist flexors': 'forearm', 'wrist extensors': 'forearm', 'grip muscles': 'forearm',
   groin: 'adductors', 'inner thighs': 'adductors',
   ankles: null, feet: null, hands: null, 'ankle stabilizers': null,
@@ -80,7 +82,7 @@ const BY_BODYPART = {
   'lower arms': { forearm: 1 },
   waist: { abs: 0.7, obliques: 0.3 },
   'upper legs': { quadriceps: 0.4, hamstring: 0.35, gluteal: 0.25 },
-  'lower legs': { calves: 0.8, tibialis: 0.2 },
+  'lower legs': { calves: 1 },
   neck: { trapezius: 1 },
   'full body': { chest: 0.2, 'upper-back': 0.2, gluteal: 0.2, quadriceps: 0.2, hamstring: 0.1, abs: 0.1 },
   cardio: {},
@@ -240,6 +242,11 @@ export function musclesOf(ex) {
     const snapshot = {}
     const weights = { ...ex.muscleWeights }
     if (weights.deltoids != null && weights['front-deltoid'] == null) weights['front-deltoid'] = weights.deltoids
+    // Older snapshots stored the shin on its own. That load belongs to the calves now.
+    if (weights.tibialis != null) {
+      const shin = Number(weights.tibialis)
+      if (Number.isFinite(shin) && shin > 0) weights.calves = Math.max(Number(weights.calves) || 0, shin)
+    }
     MUSCLES.forEach(slug => {
       const weight = Number(weights[slug])
       if (Number.isFinite(weight) && weight > 0) snapshot[slug] = weight

@@ -571,7 +571,7 @@ describe('muscle_balance', () => {
     expect(Array.isArray(r.worked)).toBe(true)
     expect(Array.isArray(r.neglected)).toBe(true)
     expect(r.muscle_order_head_to_toe[0]).toBe('trapezius')
-    expect(r.muscle_order_head_to_toe.at(-1)).toBe('tibialis')
+    expect(r.muscle_order_head_to_toe.at(-1)).toBe('calves')
     r.worked.forEach(w => {
       expect(w.level).toBeGreaterThanOrEqual(1)
       expect(w.level).toBeLessThanOrEqual(4)

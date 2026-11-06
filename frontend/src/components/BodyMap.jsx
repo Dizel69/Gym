@@ -26,15 +26,24 @@ function useBodyPaths() {
   return paths
 }
 
+// The shin is drawn, but it is the same muscle as the calves: same shade, same tap.
+const PAINT_WITH = { tibialis: 'calves' }
+
+function regionsOf(view) {
+  const extra = Object.keys(PAINT_WITH).filter(slug => view.p?.[slug]?.length)
+  return [...MUSCLES, ...extra]
+}
+
 function View({ view, levels, onMuscle, selected }) {
   const uid = useId().replace(/:/g, '')
-  const activate = (event, slug) => {
+  const regions = regionsOf(view)
+  const activate = (event, muscle) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     if (event.key === ' ') event.preventDefault()
-    onMuscle(slug)
+    onMuscle(muscle)
   }
   const clips = []
-  MUSCLES.forEach(slug => (view.c?.[slug] || []).forEach((box, i) => {
+  regions.forEach(slug => (view.c?.[slug] || []).forEach((box, i) => {
     const [x, y, w, h] = box
     clips.push(<clipPath id={`${uid}-${slug}-${i}`} key={slug + i}><rect x={x} y={y} width={w} height={h} /></clipPath>)
   }))
@@ -43,21 +52,26 @@ function View({ view, levels, onMuscle, selected }) {
       {clips.length ? <defs>{clips}</defs> : null}
       {INERT.map(slug => (view.p[slug] || []).map((d, i) =>
         <path key={slug + i} className="bm-sil" d={d} />))}
-      {MUSCLES.map(slug => (view.p[slug] || []).map((d, i) =>
+      {regions.map(slug => (view.p[slug] || []).map((d, i) => {
+        const muscle = PAINT_WITH[slug] || slug
+        return (
         <path
           key={slug + i}
-          className={'bm-m l' + (levels[slug] || 0) + (selected === slug ? ' sel' : '')}
+          data-region={slug}
+          className={'bm-m l' + (levels[muscle] || 0) + (selected === muscle ? ' sel' : '')}
           d={d}
           clipPath={view.c?.[slug]?.[i] ? `url(#${uid}-${slug}-${i})` : undefined}
-          onClick={onMuscle ? () => onMuscle(slug) : undefined}
-          onKeyDown={onMuscle ? event => activate(event, slug) : undefined}
+          onClick={onMuscle ? () => onMuscle(muscle) : undefined}
+          onKeyDown={onMuscle ? event => activate(event, muscle) : undefined}
           role={onMuscle ? 'button' : undefined}
           tabIndex={onMuscle ? 0 : undefined}
-          aria-label={onMuscle ? t(MUSCLE_NAME[slug]) : undefined}
-          aria-pressed={onMuscle ? selected === slug : undefined}
+          aria-label={onMuscle ? t(MUSCLE_NAME[muscle]) : undefined}
+          aria-pressed={onMuscle ? selected === muscle : undefined}
         >
-          <title>{t(MUSCLE_NAME[slug])}</title>
-        </path>))}
+          <title>{t(MUSCLE_NAME[muscle])}</title>
+        </path>
+        )
+      }))}
     </svg>
   )
 }

@@ -12,7 +12,7 @@ export const FATIGUE_AVOID = 0.5
 const PRIMARY = 0.5
 
 export const REGIONS = [
-  { id: 'legs', name: 'Legs', muscles: ['gluteal', 'quadriceps', 'hamstring', 'adductors', 'hip-flexors', 'calves', 'tibialis'] },
+  { id: 'legs', name: 'Legs', muscles: ['gluteal', 'quadriceps', 'hamstring', 'adductors', 'hip-flexors', 'calves'] },
   { id: 'back', name: 'the back', muscles: ['trapezius', 'upper-back', 'lower-back'] },
   { id: 'chest', name: 'Chest', muscles: ['chest', 'serratus'] },
   { id: 'shoulders', name: 'Shoulders', muscles: ['front-deltoid', 'side-deltoid', 'rear-deltoid'] },
