@@ -14,6 +14,8 @@ import { tappable } from '../lib/use-sheet-keyboard.js'
 import { MOBILE } from '../lib/mobile.js'
 import { healthImportOn, sleepParts } from '../lib/health.js'
 import { readingCount } from '../lib/weigh-ins.js'
+import { MEASUREMENT_FIELDS, measurementSeries, measurementUnit, measurementUnitLabel } from '../lib/measurements.js'
+import { measurementGuideSheet } from '../components/MeasureGuide.jsx'
 import { healthStatus, requestHealthAccess, syncHealthIntoStore } from '../lib/health-sync.js'
 
 function sleepLabel(min) {
@@ -22,6 +24,37 @@ function sleepLabel(min) {
   if (p.h <= 0) return t('{0} min', p.m)
   if (p.m === 0) return t('{0} h', p.h)
   return t('{0} h {1} min', p.h, p.m)
+}
+
+function WaistCard({ S }) {
+  const nav = useNavigate()
+  const points = measurementSeries(S, 'waist').slice(-30)
+  const latest = points.at(-1)
+  const prev = points.at(-2)
+  const delta = latest && prev ? Math.round((latest.y - prev.y) * 10) / 10 : null
+  const unit = measurementUnitLabel(measurementUnit(S.unit, MEASUREMENT_FIELDS.find(f => f.key === 'waist')))
+  return (
+    <div className="card" style={{ cursor: 'pointer' }} {...tappable(() => nav('/measurements'))}>
+      <div className="row between bw-head" style={{ marginBottom: 6 }}>
+        <h2 style={{ margin: 0 }}>{t('Body measurement')}</h2>
+        <Button size="sm" icon="plus" onClick={e => { e.stopPropagation(); measurementGuideSheet() }}>{t('Log')}</Button>
+      </div>
+      {latest ? <>
+        <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+          <div className="big">{fmtNum(latest.y)} <span className="muted" style={{ fontSize: '1rem' }}>{unit}</span></div>
+          {!!delta && (
+            <span className="small dim row" style={{ gap: 2, fontWeight: 500 }}>
+              <Icon name={delta > 0 ? 'arrowUp' : 'arrowDown'} style={{ fontSize: 12 }} />
+              {fmtNum(Math.abs(delta))}
+            </span>
+          )}
+          <span className="dim small" style={{ marginLeft: 'auto' }}>{fmtDate(latest.d, true)}</span>
+        </div>
+        <div className="small dim" style={{ marginTop: 2 }}>{t('Waist circumference')}</div>
+        <div className="chart" style={{ marginTop: 8 }}><LineChart points={points} h={130} unit={unit} color="var(--teal)" /></div>
+      </> : <div className="muted small">{t('No waist yet. The plus walks every measurement, and any of them can be skipped.')}</div>}
+    </div>
+  )
 }
 
 function WatchMetric({ icon, label, value }) {
@@ -261,11 +294,9 @@ export default function Home() {
       </> : <div className="muted small">{S.weighIn === false
         ? t('No entries yet — log your weight to start the curve.')
         : t("No entries yet — log your weight to start the curve. It's also asked before every workout.")}</div>}
-      <div className="row between" style={{ marginTop: 10, cursor: 'pointer' }} {...tappable(() => nav('/measurements'))}>
-        <span className="small">{t('Body measurements')}</span>
-        <Icon name="chevronRight" className="chev" />
-      </div>
     </div>
+
+    <WaistCard S={S} />
 
     <div className="card tappable" style={{ cursor: 'pointer' }} {...tappable(() => calendarSheet())}>
       <div className="row between">

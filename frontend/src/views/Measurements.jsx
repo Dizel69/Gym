@@ -15,6 +15,7 @@ import LineChart from '../components/LineChart.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button, NumberField, Section, Segmented, SelectRow, Switch, TextField } from '../components/ui.jsx'
 import { confirmSheet } from '../sheets.jsx'
+import { measurementGuideSheet } from '../components/MeasureGuide.jsx'
 
 const update = (fn, ...rest) => useStore.getState().update(s => { fn(s); normalizeMeasurementsState(s) }, ...rest)
 const toast = message => useUI.getState().toast(message)
@@ -214,7 +215,7 @@ export default function Measurements() {
           <div className="big" style={{ marginTop: 3 }}>{latest ? <>{fmtNum(latest.y)} <span className="muted" style={{ fontSize: '1rem' }}>{unit}</span></> : '–'}</div>
           {delta != null && delta !== 0 && <div className="small dim" style={{ marginTop: 3 }}>{delta > 0 ? '+' : ''}{withUnit(delta, unit)} {t('since previous')}</div>}
         </div>
-        <Button size="sm" icon="plus" onClick={() => measurementLogSheet()}>{t('Log')}</Button>
+        <Button size="sm" icon="plus" onClick={() => measurementGuideSheet()}>{t('Log')}</Button>
       </div>
       {available.length > 0 && <div className="sect-b" style={{ marginBottom: 8 }}><SelectRow
         title={t('Measurement')} sheetTitle={t('Choose measurement')} value={key} onChange={setSelected}

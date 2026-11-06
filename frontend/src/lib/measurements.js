@@ -21,8 +21,36 @@ export const MEASUREMENT_FIELDS = [
   { key: 'calfRight', label: 'Right calf', group: 'Legs' },
   { key: 'ankleLeft', label: 'Left ankle', group: 'Legs', optional: true },
   { key: 'ankleRight', label: 'Right ankle', group: 'Legs', optional: true },
-  { key: 'bodyFat', label: 'Body fat', group: 'Other', kind: 'percent', optional: true },
+  { key: 'bodyFat', label: 'Body fat', group: 'Other', kind: 'percent' },
 ]
+
+// How to take the measurement the picture is showing. The plus-button walks whichever of
+// these the person left switched on, in this same order — one account can keep all of
+// them, another only the few it actually uses.
+export const MEASURE_HINTS = {
+  neck: 'Around the fullest part of the neck, under the jaw. A finger should fit under the tape. Leave out the Adam\'s apple.',
+  shoulders: 'Around the fullest part of the shoulders, over the shoulder blades at the back. Arms hanging. This is a loop, not the width from seam to seam.',
+  chest: 'Level across the fullest part of the chest, under the arms and over the shoulder blades. Do not pull it tight or puff the chest.',
+  waist: 'The narrowest part of the waist. The tape is level, snug, and not digging in. Do not suck the stomach in.',
+  abdomen: 'Level across the navel, just below the waist. Do not suck the stomach in.',
+  hips: 'Level across the fullest part of the seat. Feet together, weight on both.',
+  upperArmLeft: 'Left arm hanging and relaxed. Around the fullest part, between the shoulder and the elbow. Do not flex.',
+  upperArmRight: 'Right arm hanging and relaxed. Around the fullest part, between the shoulder and the elbow. Do not flex.',
+  forearmLeft: 'Left forearm at its fullest, just below the elbow. Arm relaxed.',
+  forearmRight: 'Right forearm at its fullest, just below the elbow. Arm relaxed.',
+  wristLeft: 'Left wrist, just above the wrist bone. Snug, not tight.',
+  wristRight: 'Right wrist, just above the wrist bone. Snug, not tight.',
+  thighLeft: 'Left thigh at its fullest, just below the seat. The tape is level and the weight is on the other leg.',
+  thighRight: 'Right thigh at its fullest, just below the seat. The tape is level and the weight is on the other leg.',
+  calfLeft: 'Left calf at its fullest, between the knee and the ankle. Standing, tape level.',
+  calfRight: 'Right calf at its fullest, between the knee and the ankle. Standing, tape level.',
+  ankleLeft: 'Left ankle, just above the ankle bone. Tape level and not tight.',
+  ankleRight: 'Right ankle, just above the ankle bone. Tape level and not tight.',
+  bodyFat: 'The percent from a scale or a caliper. This one is not a tape measurement.',
+}
+export const measureHint = key => key?.startsWith('other:')
+  ? 'Write it the way you usually measure this.'
+  : (MEASURE_HINTS[key] || 'The tape lies flat against the skin, level, and is not pulled tight.')
 
 export const MEASUREMENT_KEYS = MEASUREMENT_FIELDS.map(f => f.key)
 export const DEFAULT_MEASUREMENT_KEYS = MEASUREMENT_FIELDS.filter(f => !f.optional).map(f => f.key)
@@ -176,6 +204,39 @@ export function latestMeasurement(state, key) {
     if (value != null) return { entry: state.measurements[i], value }
   }
   return null
+}
+
+// One pass of the measure guide. `values` holds a display number per key the person
+// confirmed; a missing key is a skip and must not wipe a number already stored that day.
+export function saveGuidedMeasurements(state, date, values) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return false
+  const incoming = {}
+  const custom = {}
+  for (const [key, raw] of Object.entries(values || {})) {
+    if (raw == null) continue
+    if (key.startsWith('other:')) { custom[key.slice(6)] = raw; continue }
+    if (!MEASUREMENT_KEYS.includes(key)) continue
+    const field = MEASUREMENT_FIELDS.find(f => f.key === key)
+    const stored = fromMeasurementDisplay(raw, state.unit || 'kg', field)
+    if (stored != null) incoming[key] = stored
+  }
+  if (!Object.keys(incoming).length && !Object.keys(custom).length) return false
+  const existing = (state.measurements || []).find(e => e && e.d === date)
+  const base = existing
+    ? normalizeMeasurementEntry(existing, state.customMeasurements || [])
+    : emptyMeasurement(date, state.customMeasurements || [])
+  Object.assign(base, incoming)
+  for (const [id, raw] of Object.entries(custom)) {
+    const item = base.other.find(o => o.id === id)
+    if (!item) continue
+    const stored = fromMeasurementDisplay(raw, state.unit || 'kg', { unit: item.unit })
+    if (stored != null) item.value = stored
+  }
+  base.d = date
+  base.t = Date.now()
+  state.measurements = [...(state.measurements || []).filter(e => e && e.d !== date), base]
+  normalizeMeasurementsState(state)
+  return true
 }
 
 export function measurementEntryHasValues(entry) {

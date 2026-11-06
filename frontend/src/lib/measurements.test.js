@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  fromMeasurementDisplay, measurementSeries, measurementValue, normalizeMeasurementsState, toMeasurementDisplay,
+  enabledMeasurementFields, fromMeasurementDisplay, measurementSeries, measurementValue,
+  normalizeMeasurementsState, saveGuidedMeasurements, toMeasurementDisplay,
 } from './measurements.js'
 
 describe('body measurements', () => {
@@ -32,5 +33,22 @@ describe('body measurements', () => {
     const month = measurementSeries(state, 'waist', 30, now)
     expect(month.map(p => p.y)).toEqual([84])
     expect(measurementSeries(state, 'waist', 0, now).map(p => p.y)).toEqual([90, 84])
+  })
+
+  it('walks the places that are switched on, in the catalogue order', () => {
+    const state = { unit: 'kg', measurementEnabled: ['waist', 'upperArmLeft', 'chest'], measurements: [] }
+    normalizeMeasurementsState(state)
+    expect(enabledMeasurementFields(state).map(f => f.key)).toEqual(['chest', 'waist', 'upperArmLeft'])
+  })
+
+  it('keeps a skipped measurement when the same day is written again', () => {
+    const state = { unit: 'kg', measurements: [], customMeasurements: [{ id: 'c1', name: 'Запястье', enabled: true, unit: 'cm' }] }
+    saveGuidedMeasurements(state, '2026-11-07', { chest: 102, waist: 81, 'other:c1': 16 })
+    saveGuidedMeasurements(state, '2026-11-07', { waist: 80.5 })
+    expect(state.measurements).toHaveLength(1)
+    expect(measurementValue(state.measurements[0], 'waist')).toBe(80.5)
+    expect(measurementValue(state.measurements[0], 'chest')).toBe(102)
+    expect(measurementValue(state.measurements[0], 'other:c1')).toBe(16)
+    expect(measurementValue(state.measurements[0], 'neck')).toBeNull()
   })
 })

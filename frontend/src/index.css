@@ -1156,6 +1156,11 @@ body.chips-dragging *{cursor:inherit}
   font-size:52px;font-weight:600;letter-spacing:-.035em;color:var(--label);
 }
 .bwin span{color:var(--label-2);font-size:19px}
+.measure-fig{
+  background:#eef1f4;border-radius:var(--r-lg);padding:6px 8px 0;margin:0 0 2px;
+}
+.measure-fig svg{display:block;width:100%;height:220px}
+.measure-in input{border-bottom:1px solid var(--label-4)}
 
 /* --------------------------------------------------------------- charts -- */
 .chart{width:100%;overflow:hidden}
