@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { exerciseHistory, HISTORY_SESSIONS } from './exercise-history.js'
+import { exerciseHistory, planWeightPoints, HISTORY_SESSIONS } from './exercise-history.js'
 import { estimate1RM } from './onerm.js'
 
 const DAY = 86400000
@@ -108,5 +108,27 @@ describe('exerciseHistory', () => {
     expect(h.mode).toBe('reps')
     expect(h.points).toHaveLength(1)
     expect(h.sessions.map(s => [s.id, s.value])).toEqual([['b', 20], ['a', null]])
+  })
+})
+
+describe('planWeightPoints', () => {
+  const on = (i, reps, weights) => ({
+    id: 'w' + i, d: iso(i), start: T0 + i * DAY,
+    entries: [{ id: 'bench', target: { sets: weights.length, reps, weight: weights[0] }, sets: weights.map(w => work(w, reps)) }],
+  })
+
+  it('plots one weight per workout on this rep line, and leaves a plateau in the series', () => {
+    const S = { workouts: [on(4, 12, [55]), on(0, 12, [45]), on(2, 12, [50, 50]), on(1, 8, [70]), on(3, 12, [50])] }
+    const pts = planWeightPoints(S, { id: 'bench', sets: 4, reps: 12, weight: 55 })
+    expect(pts.map(p => p.y)).toEqual([45, 50, 50, 55])
+    expect(pts.map(p => p.d)).toEqual([iso(0), iso(2), iso(3), iso(4)])
+  })
+
+  it('ignores a warm-up and a set that was never done', () => {
+    const S = { workouts: [{
+      id: 'w', d: iso(0), start: T0,
+      entries: [{ id: 'bench', target: { sets: 1, reps: 12, weight: 50 }, sets: [warm(80, 8), work(50, 12), work(60, 12, false)] }],
+    }] }
+    expect(planWeightPoints(S, { id: 'bench', reps: 12, weight: 50 }).map(p => p.y)).toEqual([50])
   })
 })

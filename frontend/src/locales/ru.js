@@ -610,6 +610,8 @@ export default {
   '{0} session': '{0} сессия',
   '{0} sessions': '{0} сессий',
   'Exercise history': 'История упражнения',
+  'Weight by workout': 'Вес по тренировкам',
+  'The same weight runs as a dashed line from that date.': 'Одинаковый вес идёт пунктиром от этой даты.',
   'Last {0} sessions': 'Последние {0} сессий',
   'Estimated 1RM': 'Расчётный 1ПМ',
   'Estimated 1RM per workout': 'Расчётный 1ПМ за тренировку',

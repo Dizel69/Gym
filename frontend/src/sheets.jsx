@@ -25,7 +25,7 @@ import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } fr
 import { buildPlanBundle, parsePlan, mergePlan, printPlan, planPrintHTML } from './lib/plan-share.js'
 import { scheduleFor } from './lib/week-cycle.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
-import { exerciseHistory } from './lib/exercise-history.js'
+import { exerciseHistory, planWeightPoints } from './lib/exercise-history.js'
 import { sessionPrescription, writeLinearPlanWeights, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement } from './lib/progression.js'
 import { normalizeRepRange } from './lib/rep-range.js'
 import { MOBILE, shareExport, printHtml } from './lib/mobile.js'
@@ -1193,6 +1193,13 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
   const progressionStepInvalid = !progressionStepIsValid(progressionStepOf(c, mode, ex, st.unit), progressionPolicy)
   const activePolicy = policyFor({ ...c, id: ex.id }, routine, mode)
   const double = mode === 'reps' && activePolicy === 'double'
+  // The chart follows the rep line open in this sheet. Rebuilding it only when
+  // that line or the log changes keeps a finger on a point from dropping the tip.
+  const weightPoints = useMemo(
+    () => (mode === 'reps' ? planWeightPoints(st, { ...c, id: ex.id }) : []),
+    [st.workouts, mode, ex.id, c.reps, c.repsMin, c.weight, c.side, c.bodyweight]
+  )
+  const weightPlateau = weightPoints.some((p, i) => i > 0 && p.y === weightPoints[i - 1].y)
   // Keep whatever the other mode already had (sets, weight) and fill only what is missing.
   const setMode = m => setC(x => {
     const next = { ...defaultConfig(ex.id, m), ...x, mode: m }
@@ -1412,6 +1419,14 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
       <BarWeightEditor ex={ex} extra={t('Applies to this exercise everywhere, not just this plan.')} />
     </>}
     <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} perSide={perSide} />
+    {weightPoints.length > 0 && <>
+      <h4 className="sec">{t('Weight by workout')}</h4>
+      <div className="chart">
+        <LineChart points={weightPoints} h={150} unit={st.unit} dashFlat dots />
+      </div>
+      {weightPlateau && <div className="small dim" style={{ marginTop: 6 }}>{t('The same weight runs as a dashed line from that date.')}</div>}
+      <div style={{ height: 18 }} />
+    </>}
     <textarea className="input" rows={3} maxLength={500} style={{ marginBottom: 18 }}
       placeholder={t('Note (optional) — loading cues, "bar only then +1 plate/side each set", anything worth remembering here')}
       value={c.note || ''} onChange={e => setC(x => ({ ...x, note: e.target.value }))} />

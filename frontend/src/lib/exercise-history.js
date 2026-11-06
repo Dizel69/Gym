@@ -1,4 +1,4 @@
-import { metricModeForEntry, metricRowsForEntry, bestWeightForEntry, modeOf } from './history.js'
+import { metricModeForEntry, metricRowsForEntry, bestWeightForEntry, modeOf, entryOnLine, splitsByReps } from './history.js'
 import { completedVolumeOf } from './workout-model.js'
 import { bestSetOf } from './onerm.js'
 
@@ -19,6 +19,30 @@ import { bestSetOf } from './onerm.js'
 // Warm-up rows are excluded from every number here, as everywhere else.
 
 export const HISTORY_SESSIONS = 10
+
+/**
+ * One weight per workout for the plan's rep line, oldest first. This is the
+ * load actually lifted, not a growth curve: a later session at the same weight
+ * stays in the series so the chart can draw that stretch as a dashed line.
+ * A different rep count is a different line and is left out.
+ */
+export function planWeightPoints(S, cfg) {
+  const id = cfg?.id
+  if (!id) return []
+  const line = splitsByReps(cfg) ? cfg : null
+  const points = []
+  for (const w of S?.workouts || []) {
+    const entry = (w.entries || []).find(e => e.id === id)
+    if (!entry) continue
+    if (line && !entryOnLine(entry, line)) continue
+    const y = bestWeightForEntry(entry)
+    if (!(y > 0)) continue
+    const t = Number.isFinite(w.start) ? w.start : new Date(w.d + 'T12:00:00').getTime()
+    points.push({ t, d: w.d, y })
+  }
+  points.sort((a, b) => a.t - b.t)
+  return points
+}
 
 const startOf = w => (Number.isFinite(w.start) ? w.start : new Date(w.d + 'T12:00:00').getTime())
 

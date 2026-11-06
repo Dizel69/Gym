@@ -12,7 +12,7 @@ const W = 340   // viewBox width; the svg stretches to its container, height com
 // opts: { h, unit, color, axes, goal, invert }
 //   invert flips the y axis, for a scale that counts down as it gets harder (RIR). Without it
 //   a curve of reps-in-reserve reads upside down, with the hardest sets at the floor.
-export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false }) {
+export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false, dashFlat = false, dots = false }) {
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
   const tipRef = useRef(null)
@@ -130,10 +130,19 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
           <text x={W - P.r - 2} y={Y(goal) - 5} textAnchor="end" fontSize="9.5" fontWeight="700" fill="var(--yellow)">{fmtNum(goal)}</text>
         </>}
         <polygon points={`${P.l},${H - P.b} ${poly} ${X(last.t).toFixed(1)},${H - P.b}`} fill={`url(#${gid})`} />
-        <polyline points={poly} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {dashFlat ? pts.map((p, i) => {
+          if (i === 0) return null
+          const prev = pts[i - 1]
+          if (prev.t === p.t && prev.y === p.y) return null
+          const flat = prev.y === p.y
+          return <line key={'s' + i} x1={X(prev.t)} y1={Y(prev.y)} x2={X(p.t)} y2={Y(p.y)}
+            stroke={color} strokeWidth="2.5" strokeLinecap="round"
+            strokeDasharray={flat ? '7 5' : undefined} />
+        }) : <polyline points={poly} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+        {dots && points.map((p, i) => <circle key={'d' + i} cx={X(p.t)} cy={Y(p.y)} r="3.2" fill={color} />)}
+        {!dots && <circle cx={X(last.t)} cy={Y(last.y)} r="4" fill={color} />}
         {marked && pts.map((p, i) => (p.m == null ? null :
           <circle key={'m' + i} cx={X(p.t)} cy={Y(p.y)} r={2.4 + p.m * 3} fill={color} opacity={0.3 + p.m * 0.7} />))}
-        <circle cx={X(last.t)} cy={Y(last.y)} r="4" fill={color} />
         {hover && <g>
           <line className="cvl" x1={hover.x} y1={P.t} x2={hover.x} y2={H - P.b} stroke="var(--label-3)" strokeWidth="1" strokeDasharray="3 3" />
           <line className="chl" x1={P.l} y1={hover.y} x2={W - P.r} y2={hover.y} stroke="var(--label-3)" strokeWidth="1" strokeDasharray="3 3" />

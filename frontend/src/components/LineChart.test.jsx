@@ -36,8 +36,8 @@ const nextPoints = [
   { t: Date.UTC(2026, 1, 15), y: 79, d: '2026-02-15' },
 ]
 
-function renderChart(points) {
-  act(() => root.render(<LineChart points={points} axes={false} unit="kg" />))
+function renderChart(points, extra) {
+  act(() => root.render(<LineChart points={points} axes={false} unit="kg" {...extra} />))
 }
 
 function hoverAt(clientX) {
@@ -100,5 +100,15 @@ describe('LineChart hover state', () => {
     hoverAt(170)
     expect(container.querySelector('.ctip')).toBeTruthy()
     expect(container.querySelector('.cvl')).toBeTruthy()
+  })
+})
+
+describe('LineChart plateau', () => {
+  it('draws a dashed segment only where the weight stays the same', () => {
+    renderChart([point(2026, 8, 1, 45), point(2026, 8, 15, 50), point(2026, 9, 1, 50), point(2026, 10, 1, 55)], { dashFlat: true, dots: true })
+    const dashes = [...container.querySelectorAll('svg line')].map(l => l.getAttribute('stroke-dasharray'))
+    expect(dashes.filter(d => d === '7 5')).toHaveLength(1)
+    expect(dashes.filter(d => d == null)).toHaveLength(2)
+    expect(container.querySelectorAll('svg circle')).toHaveLength(4)
   })
 })
