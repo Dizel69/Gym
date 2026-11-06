@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { makeSideSet, setSideField, toggleSide, addSideDrop, setSideDropAt, isSideSet } from './workout-model.js'
-import { applyPrescription } from './progression.js'
+import { applyPrescription, writeLinearPlanWeights } from './progression.js'
 import { buildSessionEntries } from './session-start.js'
 import { workoutVolume, applyIntensifierPlan, setLabel, setsDone } from './history.js'
 import { convertStateUnit } from './units.js'
@@ -41,9 +41,11 @@ describe('unilateral sets across session boundaries', () => {
   })
 
   it('uses progressed side weights when building a routine session and its planned drops', () => {
-    const cfg = { id: '0025', mode: 'reps', side: true, bodyweight: false, sets: 1, reps: 16, weight: 20, policy: 'linear', inc: 2.5, intensifier: { type: 'dropset', count: 1, pct: 20 } }
-    const S = { unit: 'kg', exWeights: {}, workouts: [{ id: 'w', d: '2026-09-01', entries: [{ ...entry(done(row())), target: cfg }] }] }
-    const [built] = buildSessionEntries(S, { id: 'r', policy: 'linear', ex: [cfg] })
+    const cfg = { id: '0025', mode: 'reps', side: true, bodyweight: false, sets: 1, reps: 16, weight: 20, prog: 'linear', inc: 2.5, intensifier: { type: 'dropset', count: 1, pct: 20 } }
+    const routine = { id: 'r', prog: 'linear', ex: [cfg] }
+    const S = { unit: 'kg', exWeights: {}, routines: [routine], workouts: [{ id: 'w', d: '2026-09-01', entries: [{ ...entry(done(row())), target: cfg, rid: 'r' }] }] }
+    writeLinearPlanWeights(S, S.workouts[0])
+    const [built] = buildSessionEntries(S, routine)
     expect(built.plan.kind).toBe('up')
     expect(built.sets[0].sides.L.w).toBe(built.plan.weight)
     expect(built.sets[0].sides.L.drops[0].w).toBe(18)

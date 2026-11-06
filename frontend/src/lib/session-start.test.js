@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildSessionEntries } from './session-start.js'
-import { readSession } from './progression.js'
+import { readSession, writeLinearPlanWeights } from './progression.js'
 import { isWarmupRow } from './workout-model.js'
 
 // The session builder used by the live start and by "log a past workout".
@@ -36,6 +36,9 @@ describe('buildSessionEntries', () => {
       }))
     }
     const r = { id: 'r', prog: 'linear', ex: [cfg] }
+    st.routines = [r]
+    st.workouts.forEach(w => { w.entries[0].rid = 'r' })
+    writeLinearPlanWeights(st, st.workouts[2])
     const entries = buildSessionEntries(st, r)
     const entry = entries[0]
     const work = entry.sets.filter(s => !isWarmupRow(s))

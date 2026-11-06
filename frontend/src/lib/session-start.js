@@ -4,7 +4,7 @@
 // Imports both history.js and progression.js (which itself imports history.js); nothing in
 // either imports this file, so there is no cycle.
 import { buildSets, applyIntensifierPlan, modeOf, splitsByReps } from './history.js'
-import { nextPrescription, applyPrescription, defaultIncrement, weightIncrement } from './progression.js'
+import { sessionPrescription, applyPrescription, defaultIncrement, weightIncrement } from './progression.js'
 
 // Returns a bare array of session entries. "Excluded from progression" is per-entry now
 // (`entry.noProg`, written only when true) rather than a wrapper flag — a rehab routine merged
@@ -17,7 +17,7 @@ export function buildSessionEntries(st, r) {
   // kept on the entry purely so the workout can explain the number it chose.
   const noProg = r?.excludeFromProgression === true
   return (r ? r.ex : []).map(cfg => {
-    const plan = noProg ? { policy: 'off', kind: 'off' } : nextPrescription(st, cfg, r)
+    const plan = noProg ? { policy: 'off', kind: 'off' } : sessionPrescription(st, cfg, r)
     // The warm-up ramp and the prescription snap to the exercise's own increment (1.25 kg
     // plates exist), not the unit default; a timed exercise's `inc` is seconds, so it keeps the
     // default for its optional load.

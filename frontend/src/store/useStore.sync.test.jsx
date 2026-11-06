@@ -262,10 +262,12 @@ describe('ordering', () => {
     await boot
     await vi.advanceTimersByTimeAsync(2000)
 
-    expect(puts()).toHaveLength(1)
     expect(puts()[0].baseRev).toBe(1)
     expect(puts()[0].state.restSec).toBe(30)
     expect(puts()[0].state.routines.map(r => r.id)).toEqual(['r'])
+    // Boot then copies the current linear workout weights into the plan once and pushes that too.
+    expect(puts().at(-1).state.linearPlanAdopted).toBe(true)
+    expect(puts().at(-1).state.restSec).toBe(30)
     expect(useStore.getState().S.restSec).toBe(30)
     expect(useStore.getState().S.routines.map(r => r.id)).toEqual(['r'])
     expect(useStore.getState().ready).toBe(true)

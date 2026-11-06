@@ -4,6 +4,8 @@
 // finished workout: the log is what happened, and the next prescription is *derived* from
 // it every time it is needed. That means changing a policy — or fixing a mistyped set —
 // immediately produces the right next target, with no stored counters to drift out of sync.
+// Linear is the exception that stores its result: after a workout the next weight is
+// written onto that routine's plan, so the following session reads the plan.
 //
 // It replaces a single hard-coded rule ("all reps done → add 2.5") with a small set of named
 // policies. The rule that applies is always visible in the app, together with the reason it
@@ -341,7 +343,7 @@ function seedWeightFromOtherLines(S, cfg, step) {
  * undefined and the caller keeps whatever the plan said. `seed` is a first session of one
  * rep line whose weight was inverted from another line's estimated 1RM.
  */
-export function nextPrescription(S, cfg, routine) {
+export function nextPrescription(S, cfg, routine, opts) {
   const mode = modeOf(cfg)
   const policy = policyFor(cfg, routine, mode)
   const unit = S.unit || 'kg'
@@ -386,6 +388,9 @@ export function nextPrescription(S, cfg, routine) {
   }
 
   const w = last.weight
+  // Linear progression's working weight is the number in the plan, not the heaviest
+  // bar that happened to be logged. A heavier experiment stays in the history and
+  // does not become the next prescription; the plan is what the next session reads.
   // Bodyweight work carries no external load, so there is nothing to add or take away —
   // "deload your push-ups to 2.5 kg" is not advice. Progress in reps instead. This runs ahead
   // of the individual policies because it is true for all of them. Note the trigger is the
@@ -414,7 +419,7 @@ export function nextPrescription(S, cfg, routine) {
   // Epley deloads apply only to externally loaded rep work. Keep the prescribed target from the
   // session that stalled (falling back field-by-field to the current config), while the logged
   // weight remains the hard upper bound for the selected candidate.
-  const epleyDeload = () => {
+  const epleyDeload = (current = w) => {
     // Epley reads load as the work done; on an assistance machine it is the work taken away.
     if (assisted) return null
     if (mode !== 'reps' || (policy !== 'linear' && policy !== 'double')) return null
@@ -424,7 +429,7 @@ export function nextPrescription(S, cfg, routine) {
     const target = {
       ...cfg,
       ...previous,
-      weight: previous.weight ?? cfg.weight,
+      weight: policy === 'linear' ? current : (previous.weight ?? cfg.weight),
       reps: Number(cfg.reps) > 0 ? Number(cfg.reps) : (previous.reps ?? cfg.reps),
       repsMin: cfg.repsMin ?? previous.repsMin,
       sets: previous.sets ?? cfg.sets,
@@ -437,7 +442,7 @@ export function nextPrescription(S, cfg, routine) {
     // on the ordinary non-load progression path.
     if (isBw(target) || target.intensifier?.type === 'restpause') return null
     const candidate = selectDeloadCandidate({
-      currentWeight: w,
+      currentWeight: current,
       targetWeight: target.weight,
       targetReps: target.reps,
       step: inc,
@@ -447,7 +452,7 @@ export function nextPrescription(S, cfg, routine) {
       perSide: isPerSide(target)
     })
     if (!candidate) return null
-    const held = candidate.weight >= w
+    const held = candidate.weight >= current
     return {
       policy,
       kind: 'deload',
@@ -489,14 +494,16 @@ export function nextPrescription(S, cfg, routine) {
     return { policy, kind: 'hold', weight: w, reps: aim, why: ['Same weight — aim for {0} reps this time.', aim] }
   }
 
-  // linear + greyskull
+  // linear + greyskull. Linear steps the plan's own weight. Greyskull still
+  // follows the logged load, the way it always has.
+  const base = policy === 'linear' && !opts?.fromLog && Number(cfg.weight) > 0 ? Number(cfg.weight) : w
   if (last.ok) {
     // Greyskull's final set is taken to failure: double the target reps there and you have
     // earned a double jump.
     const dbl = policy === 'greyskull' && last.goal > 0 && last.amrap >= last.goal * 2
     const step = dbl ? inc * 2 : inc
     return {
-      policy, kind: 'up', weight: harder(w, step),
+      policy, kind: 'up', weight: harder(base, step),
       why: dbl
         ? ['Last set hit {0} reps — twice the target, so take a double jump of {1} {2}.', last.amrap, step, unit]
         : assisted
@@ -505,9 +512,9 @@ export function nextPrescription(S, cfg, routine) {
     }
   }
   if (stalls >= deloadAt) {
-    const selected = epleyDeload()
+    const selected = epleyDeload(base)
     if (selected) return selected
-    const dw = easier(w)
+    const dw = policy === 'linear' ? (assisted ? addStep(base, inc, inc) : deloadTo(base, inc)) : easier(w)
     return {
       policy, kind: 'deload', weight: dw,
       ...(splitsByReps(cfg) ? { reps: Number(cfg.reps) } : {}),
@@ -518,7 +525,79 @@ export function nextPrescription(S, cfg, routine) {
           : ['Missed reps — reset to {0} {1} and work back up.', dw, unit]
     }
   }
-  return { policy, kind: 'hold', weight: w, why: ['Missed reps last time — same weight again ({0} of {1} to go).', deloadAt - stalls, deloadAt] }
+  return { policy, kind: 'hold', weight: base, why: ['Missed reps last time — same weight again ({0} of {1} to go).', deloadAt - stalls, deloadAt] }
+}
+
+/**
+ * The weight a new session should open with. Linear weight lives on the plan: it
+ * was raised or lowered when the previous session finished. Opening another
+ * session must not add a second step, and a hand-edited plan weight wins over
+ * the number the log would have suggested.
+ */
+export function sessionPrescription(S, cfg, routine) {
+  const plan = nextPrescription(S, cfg, routine)
+  if (plan.policy !== 'linear' || !(Number(cfg?.weight) > 0)) return plan
+  // An empty rep line may still borrow a first weight from another line's 1RM,
+  // and a first session keeps the template. Those are not a second step.
+  if (plan.kind === 'seed' || plan.kind === 'first' || plan.kind === 'off') return plan
+  const wanted = Number(cfg.weight)
+  const note = cfg.progressionNote
+  if (note && Number(note.weight) === wanted && note.why) {
+    return { ...plan, weight: wanted, kind: note.kind || plan.kind, why: note.why }
+  }
+  if (plan.weight != null && plan.weight !== wanted) {
+    return { ...plan, weight: wanted, kind: 'hold', why: ['Using the weight from the plan.'] }
+  }
+  if (plan.weight == null) return { ...plan, weight: wanted }
+  return plan
+}
+
+/**
+ * Once, when this profile first runs the plan-weight rule: copy the weight the
+ * next workout would already have opened at into each linear plan. History is
+ * the source for that copy, so a stale template (25 kg) does not replace the
+ * weight linear progression has been using (28 kg). After the flag is set, the
+ * plan is the source and a later edit is left alone.
+ */
+export function adoptLinearWorkoutWeights(state) {
+  if (!state || state.linearPlanAdopted) return false
+  for (const routine of state.routines || []) {
+    if (routine.excludeFromProgression) continue
+    for (const cfg of routine.ex || []) {
+      if (policyFor(cfg, routine) !== 'linear') continue
+      const next = nextPrescription(state, cfg, routine, { fromLog: true })
+      if (next.policy !== 'linear' || !(Number(next.weight) > 0)) continue
+      if (next.kind !== 'up' && next.kind !== 'hold' && next.kind !== 'deload') continue
+      cfg.weight = next.weight
+      cfg.progressionNote = { weight: next.weight, kind: next.kind, why: next.why }
+    }
+  }
+  state.linearPlanAdopted = true
+  return true
+}
+
+/**
+ * After a workout is in `state.workouts`, write the next linear weight back onto
+ * the routine exercise that was just trained. Other policies are left alone.
+ * A backfilled or excluded entry does not move the plan.
+ */
+export function writeLinearPlanWeights(state, workout) {
+  for (const entry of workout?.entries || []) {
+    if (entry?.noProg) continue
+    if (!(entry.sets || []).some(s => s.done && !isWarmupRow(s))) continue
+    const routine = (state.routines || []).find(r => r.id === entry.rid)
+    if (!routine || routine.excludeFromProgression) continue
+    const lineReps = Number(entry.target?.repsTop) || Number(entry.target?.reps) || 0
+    const cfg = (routine.ex || []).find(ex =>
+      ex.id === entry.id && (!(lineReps > 0) || !(Number(ex.reps) > 0) || Number(ex.reps) === lineReps))
+    if (!cfg || !(Number(cfg.weight) > 0)) continue
+    if (policyFor(cfg, routine) !== 'linear') continue
+    const next = nextPrescription(state, cfg, routine)
+    if (next.policy !== 'linear' || next.weight == null) continue
+    if (next.kind === 'first' || next.kind === 'seed' || next.kind === 'off') continue
+    cfg.weight = next.weight
+    cfg.progressionNote = { weight: next.weight, kind: next.kind, why: next.why }
+  }
 }
 
 /**

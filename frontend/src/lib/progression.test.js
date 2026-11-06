@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  readSession, sessionsFor, stallCount, nextPrescription, applyPrescription,
+  readSession, sessionsFor, stallCount, nextPrescription, sessionPrescription, adoptLinearWorkoutWeights, writeLinearPlanWeights, applyPrescription,
   policyFor, defaultIncrement, weightIncrement, epley1RM, deloadTarget1RM,
   deloadFactorOf, DELOAD_FACTOR, POLICIES_FOR, DELOAD_AFTER, MAX_BW_SETS
 } from './progression.js'
@@ -170,6 +170,77 @@ describe('linear progression', () => {
     expect(p.weight).toBe(60)
   })
 
+  it('steps the plan weight, not a heavier bar tried in the session', () => {
+    const plan = { ...cfg, sets: 4, reps: 8, weight: 25 }
+    const miss = nextPrescription(hist(LIFT, [[30, 8, 8, 8, 6]], { sets: 4, reps: 8, weight: 30 }), plan)
+    expect(miss.kind).toBe('hold')
+    expect(miss.weight).toBe(25)
+    const hit = nextPrescription(hist(LIFT, [[30, 8, 8, 8, 8]], { sets: 4, reps: 8, weight: 30 }), plan)
+    expect(hit.kind).toBe('up')
+    expect(hit.weight).toBe(27.5)
+  })
+
+  it('writes the next linear weight onto the trained routine and reads it back next time', () => {
+    const plan = { id: LIFT, sets: 4, reps: 8, weight: 25, prog: 'linear' }
+    const routine = { id: 'r1', ex: [plan, { id: LIFT, sets: 3, reps: 12, weight: 20, prog: 'linear' }] }
+    const other = { id: 'r2', ex: [{ id: LIFT, sets: 4, reps: 8, weight: 25, prog: 'linear' }] }
+    const state = {
+      unit: 'kg',
+      routines: [routine, other],
+      workouts: [{
+        d: '2026-11-06',
+        entries: [{
+          id: LIFT, rid: 'r1',
+          target: { sets: 4, reps: 8, repsTop: 8, weight: 30 },
+          sets: [8, 8, 8, 8].map(r => ({ w: 30, r, done: true })),
+        }],
+      }],
+    }
+    writeLinearPlanWeights(state, state.workouts[0])
+    expect(plan.weight).toBe(27.5)
+    expect(plan.progressionNote.kind).toBe('up')
+    expect(routine.ex[1].weight).toBe(20)
+    expect(other.ex[0].weight).toBe(25)
+
+    const again = sessionPrescription(state, plan, routine)
+    expect(again.weight).toBe(27.5)
+    expect(again.kind).toBe('up')
+
+    plan.weight = 28
+    const edited = sessionPrescription(state, plan, routine)
+    expect(edited.weight).toBe(28)
+    expect(edited.why[0]).toBe('Using the weight from the plan.')
+  })
+
+  it('copies the weight the next workout would use into the plan, once', () => {
+    const curl = { id: LIFT, sets: 4, reps: 8, weight: 25, prog: 'linear' }
+    const otherLine = { id: LIFT, sets: 3, reps: 12, weight: 20, prog: 'linear' }
+    const steady = { id: LIFT, sets: 3, reps: 10, weight: 40, prog: 'double', repsMin: 8 }
+    const state = {
+      unit: 'kg',
+      routines: [{ id: 'r1', ex: [curl, otherLine, steady] }],
+      workouts: [{
+        d: '2026-11-06',
+        entries: [{
+          id: LIFT,
+          target: { sets: 4, reps: 8, weight: 28 },
+          sets: [8, 8, 8, 7].map(r => ({ w: 28, r, done: true })),
+        }],
+      }],
+    }
+    expect(adoptLinearWorkoutWeights(state)).toBe(true)
+    expect(curl.weight).toBe(28)
+    expect(curl.progressionNote.kind).toBe('hold')
+    expect(otherLine.weight).toBe(20)
+    expect(steady.weight).toBe(40)
+    expect(state.linearPlanAdopted).toBe(true)
+    expect(sessionPrescription(state, curl, state.routines[0]).weight).toBe(28)
+
+    curl.weight = 26
+    expect(adoptLinearWorkoutWeights(state)).toBe(false)
+    expect(curl.weight).toBe(26)
+  })
+
   it('does not advance when the last set was left unchecked', () => {
     const p = nextPrescription(hist(LIFT, [[60, 5, 5, null]]), cfg)
     expect(p.kind).toBe('hold')
@@ -220,13 +291,13 @@ describe('linear progression', () => {
 
     // A bad day at the lighter weight is the first miss of a new run, not the fourth of the old
     // one. A deload is owed a fresh set of attempts, not an immediate second cut.
-    const next = nextPrescription(hist(LIFT, [...stalled, [deload.weight, 4, 4, 4]]), cfg)
+    const next = nextPrescription(hist(LIFT, [...stalled, [deload.weight, 4, 4, 4]]), { ...cfg, weight: deload.weight })
     expect(next.kind).toBe('hold')
     expect(next.weight).toBe(deload.weight)
   })
 
   it('never deloads below one increment, however light the lift already is', () => {
-    const p = nextPrescription(hist(LIFT, [[2.5, 1, 1, 1], [2.5, 1, 1, 1], [2.5, 1, 1, 1]]), cfg)
+    const p = nextPrescription(hist(LIFT, [[2.5, 1, 1, 1], [2.5, 1, 1, 1], [2.5, 1, 1, 1]]), { ...cfg, weight: 2.5 })
     expect(p.kind).toBe('deload')
     expect(p.weight).toBe(2.5)
   })
@@ -234,7 +305,7 @@ describe('linear progression', () => {
   it('always makes a deload actually lighter, even when rounding would not', () => {
     // 20 × 0.9 = 18 → nearest 2.5 step is 17.5, fine. 5 × 0.9 = 4.5 → nearest step is 5,
     // which is no deload at all, so it has to step down instead.
-    const p = nextPrescription(hist(LIFT, [[5, 1, 1, 1], [5, 1, 1, 1], [5, 1, 1, 1]]), cfg)
+    const p = nextPrescription(hist(LIFT, [[5, 1, 1, 1], [5, 1, 1, 1], [5, 1, 1, 1]]), { ...cfg, weight: 5 })
     expect(p.weight).toBeLessThan(5)
   })
 
@@ -250,7 +321,7 @@ describe('linear progression', () => {
 
   it('works in pounds', () => {
     const S = { ...hist(LIFT, [[135, 5, 5, 5]]), unit: 'lb' }
-    expect(nextPrescription(S, cfg).weight).toBe(140)
+    expect(nextPrescription(S, { ...cfg, weight: 135 }).weight).toBe(140)
   })
 })
 

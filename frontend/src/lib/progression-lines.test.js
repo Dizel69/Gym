@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextPrescription, sessionsFor, stallCount } from './progression.js'
+import { nextPrescription, sessionsFor, stallCount, writeLinearPlanWeights } from './progression.js'
 import { buildSessionEntries } from './session-start.js'
 import { best1RM, e1rmSeries, estimate1RM } from './onerm.js'
 import { EXDB, isAssisted } from './exercises.js'
@@ -29,26 +29,39 @@ function logged(d, { reps, sets = 3, weight, performed, target, noTarget, noProg
 const plan = (reps, weight, extra = {}) => ({ id: LIFT, sets: 3, reps, weight, prog: 'linear', inc: 2.5, ...extra })
 
 describe('rep lines: same exercise, different planned reps', () => {
-  it('opens a 3×8 plan at 8 reps and the 8-rep line’s weight after a later 70×12', () => {
-    // Clean 80×8, then the other scheme: 70×12, 70×12, 70×10. The 8s were a hit, so the
-    // line steps up. It must not open as 70×12.
+  it('opens a 3×8 plan at the weight written after that line, not the later 70×12', () => {
+    // Clean 80×8, then the other scheme: 70×12, 70×12, 70×10. Finishing the 8s
+    // writes 82.5 onto that plan. A later 12-rep day must not replace it.
+    const cfg = plan(8, 80)
+    const routine = { id: 'legs-shoulders', ex: [cfg] }
     const S = state([
       logged('2026-05-01', { reps: 8, weight: 80 }),
       logged('2026-05-08', { reps: 12, weight: 70, performed: [12, 12, 10] }),
     ])
-    const [entry] = buildSessionEntries(S, { id: 'legs-shoulders', ex: [plan(8, 80)] })
+    S.routines = [routine]
+    S.workouts[0].entries[0].rid = 'legs-shoulders'
+    writeLinearPlanWeights(S, S.workouts[0])
+    expect(cfg.weight).toBe(82.5)
+    const [entry] = buildSessionEntries(S, routine)
     expect(entry.plan.kind).toBe('up')
     expect(entry.plan.weight).toBe(82.5)
     expect(entry.sets.every(s => s.r === 8 && s.w === 82.5)).toBe(true)
     expect(entry.target.repsTop).toBe(8)
   })
 
-  it('raises the weight in both routines that share 3×12', () => {
+  it('writes the new weight only onto the routine that was just trained', () => {
+    const aPlan = plan(12, 40)
+    const bPlan = plan(12, 25)
     const S = state([logged('2026-05-01', { reps: 12, weight: 40 })])
-    const a = buildSessionEntries(S, { id: 'a', ex: [plan(12, 40)] })
-    const b = buildSessionEntries(S, { id: 'b', ex: [plan(12, 25)] })
+    S.routines = [{ id: 'a', ex: [aPlan] }, { id: 'b', ex: [bPlan] }]
+    S.workouts[0].entries[0].rid = 'a'
+    writeLinearPlanWeights(S, S.workouts[0])
+    const a = buildSessionEntries(S, S.routines[0])
+    const b = buildSessionEntries(S, S.routines[1])
+    expect(aPlan.weight).toBe(42.5)
+    expect(bPlan.weight).toBe(25)
     expect(a[0].sets.every(s => s.r === 12 && s.w === 42.5)).toBe(true)
-    expect(b[0].sets.every(s => s.r === 12 && s.w === 42.5)).toBe(true)
+    expect(b[0].sets.every(s => s.r === 12 && s.w === 25)).toBe(true)
   })
 
   it('does not let misses on the 12-rep line stall or deload the 8-rep line', () => {
@@ -138,7 +151,12 @@ describe('rep lines: same exercise, different planned reps', () => {
       logged('2026-05-03', { reps: 8, weight: 80, performed: [6, 6, 6] }),
       logged('2026-05-04', { reps: 12, weight: 70, performed: [12, 12, 12] }),
     ])
-    const [entry] = buildSessionEntries(S, { id: 'legs', ex: [plan(8, 80)] })
+    const cfg = plan(8, 80)
+    const routine = { id: 'legs', ex: [cfg] }
+    S.routines = [routine]
+    S.workouts[2].entries[0].rid = 'legs'
+    writeLinearPlanWeights(S, S.workouts[2])
+    const [entry] = buildSessionEntries(S, routine)
     expect(entry.plan.kind).toBe('deload')
     expect(entry.sets.every(s => s.r === 8)).toBe(true)
     expect(entry.sets.every(s => s.w < 80)).toBe(true)
