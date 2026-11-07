@@ -4,12 +4,12 @@ import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import {
   CUSTOM_MEASUREMENT_UNITS, MEASUREMENT_FIELDS, MEASUREMENT_KEYS, customMeasurementUnits,
-  emptyMeasurement, enabledMeasurementFields, fromMeasurementDisplay, latestMeasurement,
-  measurementEntryHasValues, measurementSeries, measurementUnit, measurementUnitLabel,
-  measurementValue, normalizeMeasurementEntry, normalizeMeasurementsState, toMeasurementDisplay,
-  zeroIsReading,
+  enabledMeasurementFields, fromMeasurementDisplay, latestMeasurement,
+  measurementSeries, measurementUnit, measurementUnitLabel,
+  measurementValue, normalizeMeasurementsState, saveGuidedMeasurements, stepMeasurement,
+  toMeasurementDisplay,
 } from '../lib/measurements.js'
-import { fmtDate, fmtNum, todayISO, uid } from '../lib/format.js'
+import { fmtDate, fmtNum, uid } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import LineChart from '../components/LineChart.jsx'
 import Icon from '../components/Icon.jsx'
@@ -28,82 +28,94 @@ const shownValue = (entry, field, profileUnit) => {
   return toMeasurementDisplay(value, profileUnit, field)
 }
 
-function MeasurementLog({ sourceDate, close }) {
+function fieldsForDay(S, entry) {
+  const fields = [...enabledMeasurementFields(S)]
+  if (!entry) return fields
+  for (const f of MEASUREMENT_FIELDS) {
+    if (entry[f.key] != null && !fields.some(x => x.key === f.key)) fields.push(f)
+  }
+  for (const o of entry.other || []) {
+    if (o.value != null && !fields.some(x => x.key === 'other:' + o.id)) {
+      fields.push({ key: 'other:' + o.id, label: o.name, unit: o.unit, custom: true, group: 'Other' })
+    }
+  }
+  return fields
+}
+
+function MeasurementAdjust({ field, date, initial, onBack }) {
   const S = useStore(s => s.S)
-  const source = sourceDate ? (S.measurements || []).find(e => e.d === sourceDate) : null
-  const enabled = enabledMeasurementFields(S)
-  const fields = [...enabled]
-  if (source) {
-    for (const f of MEASUREMENT_FIELDS) {
-      if (source[f.key] != null && !fields.some(x => x.key === f.key)) fields.push(f)
-    }
-    for (const o of source.other || []) {
-      if (o.value != null && !fields.some(x => x.key === 'other:' + o.id)) {
-        fields.push({ key: 'other:' + o.id, label: o.name, unit: o.unit, custom: true, group: 'Other' })
-      }
-    }
-  }
-  const [date, setDate] = useState(source?.d || todayISO())
-  const [values, setValues] = useState(() => Object.fromEntries(fields.map(f => [f.key, shownValue(source, f, S.unit)])))
-
+  const unit = fieldUnit(field, S.unit)
+  const [n, setN] = useState(initial)
+  const title = field.custom ? field.label : t(field.label)
+  const bump = delta => setN(stepMeasurement(n, delta, measurementUnit(S.unit, field)))
   const save = () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayISO()) { toast(t('Choose a valid date')); return }
-    if (date !== sourceDate && (S.measurements || []).some(e => e.d === date)) {
-      toast(t('That date already has measurements. Edit it instead.')); return
+    const stored = fromMeasurementDisplay(n, S.unit, field)
+    if (stored == null) {
+      toast(measurementUnit(S.unit, field) === '%'
+        ? t('{0} must be between 0 and 100%.', title)
+        : t('Enter at least one measurement'))
+      return
     }
-    const base = source ? normalizeMeasurementEntry(source, S.customMeasurements) : emptyMeasurement(date, S.customMeasurements)
-    base.d = date
-    for (const field of fields) {
-      const raw = values[field.key]
-      const shown = measurementUnit(S.unit, field)
-      const value = raw == null || (raw === 0 && !zeroIsReading(shown)) ? null : Math.round(+raw * 10) / 10
-      if (shown === '%' && value != null && (value < 0 || value > 100)) {
-        toast(t('{0} must be between 0 and 100%.', t(field.label))); return
-      }
-      if (field.custom) {
-        const item = base.other.find(o => o.id === field.key.slice(6))
-        if (item) {
-          item.value = fromMeasurementDisplay(value, S.unit, field)
-          if (field.unit) item.unit = field.unit
-        }
-      } else if (field.key === 'bodyFat') base.bodyFat = value
-      else base[field.key] = value == null ? null : fromMeasurementDisplay(value, S.unit, field)
-    }
-    if (!measurementEntryHasValues(base)) { toast(t('Enter at least one measurement')); return }
-    base.t = Date.now()
-    update(state => {
-      if (sourceDate) state.measurements = state.measurements.filter(e => e.d !== sourceDate)
-      state.measurements.push(base)
-    })
-    close()
+    update(state => { saveGuidedMeasurements(state, date, { [field.key]: n }) })
     toast(t('Measurements saved'))
+    onBack()
   }
-
   return <>
-    <h3>{source ? t('Edit measurements') : t('Log measurements')}</h3>
-    <div className="muted small" style={{ marginBottom: 12 }}>{t('Fill only what you measured today. Empty fields stay empty.')}</div>
-    <label className="row between" style={{ marginBottom: 12 }}>
-      <span className="small muted">{t('Date')}</span>
-      <input type="date" className="input" value={date} max={todayISO()} onChange={e => setDate(e.target.value)} style={{ width: 160 }} />
-    </label>
-    {fields.length ? <div className="list" style={{ gap: 0 }}>
-      {fields.map(field => <label key={field.key} className="row between" style={{ padding: '8px 2px', borderBottom: '1px solid var(--sep)', gap: 12 }}>
-        <span className="small">{t(field.label)}</span>
-        <span className="row" style={{ gap: 6 }}>
-          <NumberField nullable value={values[field.key]} onChange={value => setValues(v => ({ ...v, [field.key]: value }))} />
-          <i className="dim small" style={{ fontStyle: 'normal', minWidth: 18 }}>{fieldUnit(field, S.unit)}</i>
-        </span>
-      </label>)}
-    </div> : <div className="empty small">{t('Choose at least one measurement first.')}</div>}
-    <div style={{ height: 14 }} />
-    <Button variant="primary" onClick={save} disabled={!fields.length}>{t('Save')}</Button>
-    <div style={{ height: 8 }} />
-    <Button variant="ghost" className="dim" onClick={close}>{t('Cancel')}</Button>
+    <div className="row between" style={{ marginBottom: 6 }}>
+      <button className="iconbtn" onClick={onBack} aria-label={t('Back')}><Icon name="chevronLeft" /></button>
+      <h3 style={{ margin: 0, textAlign: 'center' }}>{title}</h3>
+      <span style={{ width: 36 }} />
+    </div>
+    <div className="bwstep">
+      <button className="chip" onClick={() => bump(-1)} aria-label="minus 1">−1</button>
+      <label className="bw-read">
+        <NumberField nullable fit value={n} onChange={setN} aria-label={title}
+          onKeyDown={e => { if (e.key === 'Enter' && n != null) save() }} />
+        {unit ? <span className="u"> {unit}</span> : null}
+      </label>
+      <button className="chip" onClick={() => bump(1)} aria-label="plus 1">+1</button>
+    </div>
+    <div className="chips" style={{ justifyContent: 'center', margin: '8px 0 16px' }}>
+      <button className="chip" onClick={() => bump(-0.5)}>−0.5</button>
+      <button className="chip" onClick={() => bump(-0.1)}>−0.1</button>
+      <button className="chip" onClick={() => bump(0.1)}>+0.1</button>
+      <button className="chip" onClick={() => bump(0.5)}>+0.5</button>
+    </div>
+    <Button variant="primary" onClick={save} disabled={n == null}>{t('Save')}</Button>
   </>
 }
 
-export function measurementLogSheet(sourceDate = null) {
-  return useUI.getState().openSheet(close => <MeasurementLog sourceDate={sourceDate} close={close} />)
+function MeasurementDay({ date, close }) {
+  const S = useStore(s => s.S)
+  const entry = (S.measurements || []).find(e => e.d === date) || null
+  const fields = fieldsForDay(S, entry)
+  const [editing, setEditing] = useState(null)
+  const field = fields.find(f => f.key === editing)
+  if (field) {
+    return <MeasurementAdjust key={field.key} field={field} date={date} onBack={() => setEditing(null)}
+      initial={shownValue(entry, field, S.unit)} />
+  }
+  return <>
+    <h3>{t('Edit measurements')}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>{fmtDate(date, true)}</div>
+    {fields.length ? <div className="card" style={{ padding: 0 }}>
+      {fields.map(f => {
+        const value = shownValue(entry, f, S.unit)
+        const label = f.custom ? f.label : t(f.label)
+        return <button key={f.key} className="lrow tap" onClick={() => setEditing(f.key)}>
+          <span className="lrow-m"><span className="lrow-t">{label}</span></span>
+          <span className="lrow-v" style={{ color: 'var(--label)' }}>{value == null ? '—' : withUnit(value, fieldUnit(f, S.unit))}</span>
+          <Icon name="chevronRight" className="lrow-c" />
+        </button>
+      })}
+    </div> : <div className="empty small">{t('Choose at least one measurement first.')}</div>}
+    <Button variant="ghost" className="dim" onClick={close}>{t('Done')}</Button>
+  </>
+}
+
+export function measurementLogSheet(sourceDate) {
+  if (!sourceDate) return
+  return useUI.getState().openSheet(close => <MeasurementDay date={sourceDate} close={close} />)
 }
 
 function ManageMeasurements({ close }) {
@@ -238,15 +250,19 @@ export default function Measurements() {
     {recent.length ? <div className="list">{recent.map(entry => {
       const count = MEASUREMENT_KEYS.filter(k => entry[k] != null).length + (entry.other || []).filter(o => o.value != null).length
       const preview = enabledMeasurementFields(S).map(f => ({ field: f, value: shownValue(entry, f, S.unit) })).filter(x => x.value != null).slice(0, 3)
+      const open = () => measurementLogSheet(entry.d)
       return <div className="card" key={entry.d}>
         <div className="row between">
-          <div><b>{fmtDate(entry.d, true)}</b><div className="small dim" style={{ marginTop: 2 }}>{t(count === 1 ? '{0} measurement' : '{0} measurements', count)}</div></div>
+          <button className="meas-open" onClick={open}>
+            <b>{fmtDate(entry.d, true)}</b>
+            <div className="small dim" style={{ marginTop: 2 }}>{t(count === 1 ? '{0} measurement' : '{0} measurements', count)}</div>
+          </button>
           <div className="row" style={{ gap: 4 }}>
-            <button className="iconbtn" onClick={() => measurementLogSheet(entry.d)} aria-label={t('Edit')}><Icon name="pencil" /></button>
+            <button className="iconbtn" onClick={open} aria-label={t('Edit')}><Icon name="pencil" /></button>
             <button className="iconbtn" style={{ color: 'var(--red)' }} onClick={() => remove(entry)} aria-label={t('Delete')}><Icon name="trash" /></button>
           </div>
         </div>
-        {preview.length > 0 && <div className="small" style={{ marginTop: 8 }}>{preview.map(({ field: f, value }) => <span key={f.key} style={{ marginRight: 12 }}>{f.custom ? f.label : t(f.label)} <b>{withUnit(value, fieldUnit(f, S.unit))}</b></span>)}</div>}
+        {preview.length > 0 && <button className="meas-open" style={{ marginTop: 8 }} onClick={open}>{preview.map(({ field: f, value }) => <span key={f.key} style={{ marginRight: 12 }}>{f.custom ? f.label : t(f.label)} <b>{withUnit(value, fieldUnit(f, S.unit))}</b></span>)}</button>}
       </div>
     })}</div> : <div className="empty small">{t('No measurements yet')}</div>}
   </div>

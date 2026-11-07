@@ -69,6 +69,16 @@ export const measurementUnitLabel = unit => unit === 'none' ? '' : unit
 // A unit where 0 is a reading, not an empty field: 0 % or a score of 0.
 export const zeroIsReading = unit => unit === '%' || unit === 'none'
 
+// One tap of −1 / +1 (or a tenth) on a measurement. An empty field stays empty until a
+// number is typed, so a stray tap cannot invent a 1 cm waist.
+export function stepMeasurement(value, delta, unit) {
+  if (value == null || !Number.isFinite(+value)) return null
+  const next = round(+value + delta)
+  if (unit === '%') return Math.min(100, Math.max(0, next))
+  if (unit === 'none') return Math.max(0, next)
+  return Math.min(300, Math.max(0.1, next))
+}
+
 export const measurementUnit = (unit, field) => field?.key === 'bodyFat' ? '%' : unitOf(field) || (unit === 'lb' ? 'in' : 'cm')
 export const toMeasurementDisplay = (value, unit, field) => {
   if (value == null) return null

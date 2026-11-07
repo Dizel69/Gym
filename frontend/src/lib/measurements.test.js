@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   enabledMeasurementFields, fromMeasurementDisplay, measurementSeries, measurementValue,
-  normalizeMeasurementsState, saveGuidedMeasurements, toMeasurementDisplay,
+  normalizeMeasurementsState, saveGuidedMeasurements, stepMeasurement, toMeasurementDisplay,
 } from './measurements.js'
 
 describe('body measurements', () => {
@@ -50,5 +50,13 @@ describe('body measurements', () => {
     expect(measurementValue(state.measurements[0], 'chest')).toBe(102)
     expect(measurementValue(state.measurements[0], 'other:c1')).toBe(16)
     expect(measurementValue(state.measurements[0], 'neck')).toBeNull()
+  })
+
+  it('steps a logged number by a centimetre and leaves an empty one alone', () => {
+    expect(stepMeasurement(112, 1, 'cm')).toBe(113)
+    expect(stepMeasurement(112.4, -0.1, 'cm')).toBe(112.3)
+    expect(stepMeasurement(0.1, -1, 'cm')).toBe(0.1)
+    expect(stepMeasurement(99.5, 1, '%')).toBe(100)
+    expect(stepMeasurement(null, 1, 'cm')).toBeNull()
   })
 })
