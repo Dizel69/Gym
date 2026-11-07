@@ -14,7 +14,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-- First start downloads the exercise images/GIFs (~140 MB) once into `media/img` and `media/gif`.
+- First start downloads the exercise stills and loops (~200 MB) once into `media/img` and `media/gif`.
 - Open **http://localhost:8080** and create a profile with a passkey.
 - The images are built from this repository. Node is not required on the server.
 

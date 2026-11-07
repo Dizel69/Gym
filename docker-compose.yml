@@ -1,35 +1,18 @@
 name: opengym
 
 services:
-  # One-time: download the exercise images + GIFs into ./media (skipped if already there).
-  # ~140 MB, from github.com/hasaneyldrm/exercises-dataset. That dataset is MIT for the
-  # metadata and instruction text, but the images and GIFs are © Gym visual
-  # (https://gymvisual.com/) and are used under the dataset's terms — openGym neither
-  # redistributes nor relicenses them. See NOTICE.md.
+  # One-time: download the exercise stills and loops into ./media.
+  # ~200 MB, from the openGym catalogue. The pictures are © Gym visual and are not
+  # part of the AGPL — this app downloads them and does not commit them. See NOTICE.md.
+  # An old img/ full of the previous JPGs does not count: the script looks for a
+  # file from this catalogue and downloads when it is missing.
   media:
     image: alpine/git
     volumes:
       - ./media/img:/out/img
       - ./media/gif:/out/gif
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        if [ -z "$$(ls -A /out/img 2>/dev/null)" ]; then
-          echo "↓ Downloading exercise media (~140 MB, one time)…"
-          echo "  Source:  github.com/hasaneyldrm/exercises-dataset"
-          echo "  Metadata and instruction text: MIT."
-          echo "  Images and animations: © Gym visual — https://gymvisual.com/"
-          echo "  They are used under that dataset's terms, not openGym's AGPL, and are"
-          echo "  downloaded from upstream — openGym does not redistribute them."
-          echo "  Terms: https://gymvisual.com/content/3-terms-and-conditions-of-use"
-          echo "  Reusing this media yourself, commercially or not, needs your own licence"
-          echo "  from Gym visual. Details in NOTICE.md."
-          git clone --depth 1 https://github.com/hasaneyldrm/exercises-dataset /tmp/ds
-          cp /tmp/ds/images/*.jpg /out/img/ && cp /tmp/ds/videos/*.gif /out/gif/
-          echo "✓ Exercise media ready ($$(ls /out/img | wc -l) images)."
-        else
-          echo "✓ Exercise media already present — skipping download."
-        fi
+      - ./scripts/fetch-media.sh:/fetch-media.sh:ro
+    entrypoint: ["/bin/sh", "/fetch-media.sh", "/out/img", "/out/gif"]
     restart: "no"
 
   # Passkey auth + per-user data (Node, no framework). Built from this repository.

@@ -41,7 +41,8 @@ export function derivePack(l, pack) {
 
 let lang = 'en'                 // set only by _setLangState, called from i18n.js setLang
 let dict = {}                   // current locale pack (empty = English fallback)
-let instr = null                // { exId: [steps] } for the current language, null = English
+let instr = null                // { exId: [steps] } for the current language
+let instrEn = null              // English steps, used when a translation has no entry yet
 let exerciseNames = null        // { exId: translated name }, null = original catalogue name
 let version = 0                 // bumped on every setLang; drives the React subscription selector
 
@@ -56,8 +57,24 @@ export function t(s, ...args) {
   return v
 }
 
-// Instructions for an exercise in the current language (English steps as fallback).
-export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
+// Instructions for an exercise in the current language. A translation that does not
+// know this exercise yet falls back to the steps stored on the exercise (the kettlebell
+// extras are written in Russian there), and only then to the English catalogue.
+export const instrFor = ex => {
+  const own = instr && instr[ex?.id]
+  if (own && own.length) return own
+  if (ex?.st && ex.st.length) return ex.st
+  const en = instrEn && instrEn[ex?.id]
+  return en && en.length ? en : []
+}
+// True when the steps on screen are the English catalogue standing in for a missing
+// translation. Steps written on the exercise itself are not labelled that way.
+export const instrIsEnglishFallback = ex => {
+  const own = instr && instr[ex?.id]
+  if (own && own.length) return false
+  if (ex?.st && ex.st.length) return false
+  return !!(instrEn && instrEn[ex?.id] && instrEn[ex.id].length)
+}
 
 // Built-in catalogue names are bilingual when a complete translated name pack is active.
 // User-created exercises have no entry in the pack and keep their exact chosen name.
@@ -84,10 +101,12 @@ export const exerciseNameSearchText = ex => {
 // Called by i18n.js's setLang once the locale pack has been loaded — kept here rather than
 // exported as setLang because loading packs requires import.meta.glob, which is Vite-only.
 // `dict`, `instr` and `exerciseNames` may be null to reset to their English fallbacks.
-export function _setLangState(newLang, newDict, newInstr, newExerciseNames) {
+export function _setLangState(newLang, newDict, newInstr, newExerciseNames, newInstrEn) {
   lang = LANGS[newLang] ? newLang : 'en'
   dict = lang === 'en' ? {} : (newDict || {})
-  instr = lang === 'en' || !INSTR_LANGS.includes(baseLang(lang)) ? null : (newInstr || null)
+  const base = baseLang(lang)
+  instr = INSTR_LANGS.includes(base) ? (newInstr || null) : null
+  instrEn = newInstrEn || (base === 'en' ? instr : null)
   exerciseNames = lang === 'en' || !EXERCISE_NAME_LANGS.includes(baseLang(lang))
     ? null
     : (newExerciseNames || null)

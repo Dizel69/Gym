@@ -6,13 +6,13 @@
 import { useSyncExternalStore } from 'react'
 import {
   LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, DATE_LOCALES, DERIVED_LOCALES,
-  getLang, dateLocale, t, instrFor, exerciseNameFor, exerciseNameSearchText, getVersion,
+  getLang, dateLocale, t, instrFor, instrIsEnglishFallback, exerciseNameFor, exerciseNameSearchText, getVersion,
   baseLang, derivePack, _setLangState
 } from './i18n-core.js'
 
 export {
   LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, DATE_LOCALES, DERIVED_LOCALES,
-  getLang, dateLocale, t, instrFor, exerciseNameFor, exerciseNameSearchText
+  getLang, dateLocale, t, instrFor, instrIsEnglishFallback, exerciseNameFor, exerciseNameSearchText
 }
 
 // Vite code-splits locale, instruction and exercise-name packs via import.meta.glob. They are
@@ -32,15 +32,17 @@ export async function setLang(l) {
   // transforms the strings on the way through. `l` stays the selected language throughout, so
   // dateLocale() still reports de-CH and formats numbers Swiss-style.
   const base = baseLang(l)
-  let dict = {}, instr = null, exerciseNames = null
+  let dict = {}, instr = null, instrEn = null, exerciseNames = null
   try { dict = base === 'en' ? {} : (await localePacks['../locales/' + base + '.js']()).default } catch (e) { dict = {} }
-  try { instr = base === 'en' || !INSTR_LANGS.includes(base) ? null : (await instrPacks['../instr/' + base + '.js']()).default } catch (e) { instr = null }
+  try { instrEn = (await instrPacks['../instr/en.js']()).default } catch (e) { instrEn = null }
+  if (base === 'en') instr = instrEn
+  else try { instr = INSTR_LANGS.includes(base) ? (await instrPacks['../instr/' + base + '.js']()).default : null } catch (e) { instr = null }
   try {
     exerciseNames = base === 'en' || !EXERCISE_NAME_LANGS.includes(base)
       ? null
       : (await exerciseNamePacks['../exercise-names/' + base + '.js']()).default
   } catch (e) { exerciseNames = null }
-  _setLangState(l, derivePack(l, dict), derivePack(l, instr), derivePack(l, exerciseNames))
+  _setLangState(l, derivePack(l, dict), derivePack(l, instr), derivePack(l, exerciseNames), derivePack(l, instrEn))
   notify()
 }
 

@@ -89,7 +89,7 @@ server {
     }
 
     # Exercise images/GIFs never change → cache hard
-    location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|webp|avif)$ {
+    location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|webp|avif|mp4|webm)$ {
         # A regex location wins over the prefix block above, so it never saw its rewrite and
         # looked for the file under the prefix on disk. Same identity-when-empty rewrite here.
         rewrite ^${BASE_PATH}/(.*)$ /$1 break;

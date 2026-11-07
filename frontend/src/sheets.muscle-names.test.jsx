@@ -6,7 +6,7 @@
 import React, { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
-import { EXIDX, registerCustom } from './lib/exercises.js'
+import { EXDB, EXIDX, registerCustom } from './lib/exercises.js'
 import { DEF, useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { _setLangState } from './lib/i18n-core.js'
@@ -105,7 +105,8 @@ describe('muscle names in the rows and tags (QA C9)', () => {
     const host = renderTop()
     act(() => type(host.querySelector('input.input'), 'burpee'))
     expect(rowFor(host, 'burpee').querySelector('.ss').textContent).toBe('сердечно-сосудистая система · свой вес')
-    exConfigSheet(EXIDX['1160'], null, vi.fn())
+    const cardio = EXDB.find(e => e.bp === 'cardio' && e.eq === 'body weight' && e.tg === 'cardiovascular system')
+    exConfigSheet(EXIDX[cardio.id], null, vi.fn())
     const tags = [...renderTop().querySelectorAll('.tag')].map(e => e.textContent.trim())
     expect(tags).toEqual(['Кардио', 'сердечно-сосудистая система', 'свой вес'])
   })

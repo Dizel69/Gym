@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { imgSrc, gifSrc } from '../lib/exercises.js'
+import { useEffect, useRef, useState } from 'react'
+import { figureOf, gifSrc, imgSrc, isVideoSrc } from '../lib/exercises.js'
 import { useStore } from '../store/useStore.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import Icon from './Icon.jsx'
@@ -20,12 +20,26 @@ export default function Media({ ex, id, compact, minimizable }) {
   // both, and a tap tries again — no text, so nothing new to translate.
   const [failed, setFailed] = useState(null)
   const gifSize = useStore(s => s.S.gifSize)
+  const figure = useStore(s => figureOf(s.S))
   const update = useStore(s => s.update)
-  if (!ex.gif) return null
-  if (minimizable && gifSize === 'off') return null
+  const clipRef = useRef(null)
+  const hidden = !ex?.gif || (minimizable && gifSize === 'off')
+  const clip = hidden ? '' : gifSrc(ex, figure)
+  const still = hidden ? '' : imgSrc(ex, figure)
+  const showGif = playing && failed == null
+  const video = !hidden && showGif && isVideoSrc(clip)
+  useEffect(() => {
+    const el = clipRef.current
+    if (!el) return
+    el.muted = true
+    el.defaultMuted = true
+    el.setAttribute('muted', '')
+    const p = el.play?.()
+    if (p && typeof p.catch === 'function') p.catch(() => {})
+  }, [clip, video])
+  if (hidden) return null
   const mini = minimizable && gifSize === 'mini'
   const toggleSize = e => { e.stopPropagation(); update(s => { s.gifSize = mini ? 'full' : 'mini' }) }
-  const showGif = playing && failed == null
   const onError = () => setFailed(showGif ? 'gif' : 'all')
   const onTap = () => {
     if (failed) { setFailed(null); setPlaying(true); return }
@@ -35,7 +49,9 @@ export default function Media({ ex, id, compact, minimizable }) {
     <div className={'exmedia' + (compact ? ' compact' : '') + (mini ? ' mini' : '') + (failed === 'all' ? ' broken' : '')} id={id} onClick={onTap}>
       {failed === 'all'
         ? <div className="exmedia-x"><Icon name="dumbbell" /></div>
-        : <img decoding="async" draggable={false} src={showGif ? gifSrc(ex) : imgSrc(ex)} alt={exerciseNameFor(ex)} onError={onError} />}
+        : video
+          ? <video ref={clipRef} className="catvid" src={clip} autoPlay muted loop playsInline disablePictureInPicture aria-label={exerciseNameFor(ex)} onError={onError} />
+          : <img decoding="async" draggable={false} src={showGif ? clip : still} alt={exerciseNameFor(ex)} onError={onError} />}
       {minimizable && (
         <button className="giftoggle" onClick={toggleSize}>
           <Icon name={mini ? 'expand' : 'minimize'} />{mini ? t('Expand') : t('Minimize')}
@@ -51,6 +67,8 @@ export default function Media({ ex, id, compact, minimizable }) {
 }
 
 export function Thumb({ ex }) {
-  if (!ex.img) return <div className="thumb thumb-x"><Icon name="dumbbell" /></div>
-  return <img className="thumb" loading="lazy" decoding="async" draggable={false} src={imgSrc(ex)} alt="" />
+  const figure = useStore(s => figureOf(s.S))
+  const src = ex.img ? imgSrc(ex, figure) : ''
+  if (!src) return <div className="thumb thumb-x"><Icon name="dumbbell" /></div>
+  return <img className="thumb" loading="lazy" decoding="async" draggable={false} src={src} alt="" />
 }

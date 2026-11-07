@@ -1,24 +1,33 @@
-#!/usr/bin/env bash
-# Manually download the exercise images (JPG) and animations (GIF) into ./media.
-# You normally DON'T need this — `docker compose up` fetches them automatically.
-# Source: hasaneyldrm/exercises-dataset — MIT for the metadata and instruction text, but the
-# images and GIFs are © Gym visual (https://gymvisual.com/), used under that dataset's terms.
-# openGym does not redistribute or relicense them. See NOTICE.md.
-set -euo pipefail
-cd "$(dirname "$0")/.."
+#!/bin/sh
+# Download the exercise stills (webp) and loops (mp4) into media/.
+# You normally don't need this — `docker compose up` fetches them once.
+# The pictures are © Gym visual, licensed for use in openGym, and are not
+# covered by the AGPL. They are not committed. See NOTICE.md.
+set -eu
+img="${1:-}"
+gif="${2:-}"
+if [ -z "$img" ]; then
+  root="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+  img="$root/media/img"
+  gif="$root/media/gif"
+fi
+mkdir -p "$img" "$gif"
+if [ -f "$img/5965.webp" ]; then
+  echo "✓ Exercise media already present — skipping download."
+  exit 0
+fi
+cat <<'EOF'
+↓ Downloading exercise pictures (~200 MB, one time)
+  Source: github.com/DuarteSantos8/openGym tag v1.4.4, catalogue/media
+  Stills and loops: © Gym visual — https://gymvisual.com/
+  Licensed for openGym, not part of the AGPL. This app downloads them and
+  does not put them in the repository. Details in NOTICE.md.
+EOF
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-cat <<'EOF'
-↓ Downloading exercise media (~140 MB) from github.com/hasaneyldrm/exercises-dataset
-  Metadata and instruction text: MIT.
-  Images and animations: © Gym visual — https://gymvisual.com/
-  Used under that dataset's terms, not openGym's AGPL; openGym does not redistribute them.
-  Terms: https://gymvisual.com/content/3-terms-and-conditions-of-use
-  Reusing this media yourself, commercially or not, needs your own licence from Gym visual.
-  Details in NOTICE.md.
-EOF
-git clone --depth 1 https://github.com/hasaneyldrm/exercises-dataset "$tmp"
-mkdir -p media/img media/gif
-cp "$tmp"/images/*.jpg media/img/
-cp "$tmp"/videos/*.gif media/gif/
-echo "✓ $(ls media/img | wc -l) images, $(ls media/gif | wc -l) GIFs"
+git clone --depth 1 --filter=blob:none --sparse --branch v1.4.4 \
+  https://github.com/DuarteSantos8/openGym.git "$tmp/og"
+git -C "$tmp/og" sparse-checkout set catalogue/media/still catalogue/media/clip
+cp "$tmp/og"/catalogue/media/still/*.webp "$img/"
+cp "$tmp/og"/catalogue/media/clip/*.mp4 "$gif/"
+echo "✓ $(find "$img" -name '*.webp' | wc -l) stills, $(find "$gif" -name '*.mp4' | wc -l) clips"

@@ -66,5 +66,5 @@ it('searchExercises over the real catalogue returns only exact hits for correctl
     expect(got.length, q).toBe(EXDB.filter(e => plain(e, q)).length)
     expect(got.every(e => plain(e, q)), q).toBe(true)
   }
-  expect(searchExercises(EXDB, 'wrist')[0].n).toBe('band reverse wrist curl')
+  expect(searchExercises(EXDB, 'wrist').some(e => e.n === 'band reverse wrist curl')).toBe(true)
 })

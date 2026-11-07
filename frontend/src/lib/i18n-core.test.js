@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { LANGS, DATE_LOCALES, getLang, t, dateLocale, _setLangState } from './i18n-core.js'
+import { LANGS, DATE_LOCALES, getLang, t, dateLocale, instrFor, instrIsEnglishFallback, _setLangState } from './i18n-core.js'
 import ru from '../locales/ru.js'
 
 describe('languages', () => {
@@ -21,6 +21,16 @@ describe('languages', () => {
     expect(getLang()).toBe('ru')
     expect(dateLocale()).toBe('ru-RU')
     expect(t('Glutes')).toBe('Ягодицы')
+    _setLangState('en', {}, null, null)
+  })
+
+  it('shows English steps when Russian has no translation for that exercise yet', () => {
+    const ex = { id: 'new', n: 'new move', st: [] }
+    _setLangState('ru', {}, { old: ['Лягте'] }, null, { new: ['Lie down.'] })
+    expect(instrFor({ id: 'old' })).toEqual(['Лягте'])
+    expect(instrIsEnglishFallback({ id: 'old' })).toBe(false)
+    expect(instrFor(ex)).toEqual(['Lie down.'])
+    expect(instrIsEnglishFallback(ex)).toBe(true)
     _setLangState('en', {}, null, null)
   })
 })

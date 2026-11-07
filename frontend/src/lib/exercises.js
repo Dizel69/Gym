@@ -1,4 +1,4 @@
-import { EXDB } from './exercises-data.js'
+import { EXALIAS, EXDB } from './exercises-data.js'
 import { KETTLEBELL_EXTRA } from './kettlebell-extra.js'
 import { USER_EXERCISE_MUSCLE_OVERRIDES, exerciseMuscleMetadataFor } from './exercise-muscle-batch-1.js'
 import { t, getVersion, exerciseNameSearchText } from './i18n-core.js'
@@ -68,6 +68,13 @@ export const smOf = ex => {
 
 export const EXIDX = {}
 CATALOGUE.forEach(e => { EXIDX[e.id] = e })
+// A drawing id (the female picture of a male exercise, or the reverse) is not an exercise
+// of its own. Looking it up finds the exercise it draws. The property is not enumerable,
+// so a walk of the index still sees each exercise once, and a logged id never changes.
+for (const [id, to] of Object.entries(EXALIAS)) {
+  if (EXIDX[id] || !EXIDX[to]) continue
+  Object.defineProperty(EXIDX, id, { value: EXIDX[to], enumerable: false, configurable: true })
+}
 export const BODYPARTS = [...new Set(CATALOGUE.map(e => e.bp))].sort()
 
 // Equipment options present in a given list of exercises, most common first (issue #6).
@@ -160,8 +167,16 @@ const GIF_BASE = ENV.VITE_GIF_BASE || 'gif/'
 const mediaSrc = (base, file) => !file ? ''
   : (file.startsWith('/') || /^https?:\/\//.test(file)) ? file
   : base + file
-export const imgSrc = ex => mediaSrc(IMG_BASE, ex?.img)
-export const gifSrc = ex => mediaSrc(GIF_BASE, ex?.gif)
+// About 900 exercises are drawn twice. `fv` is the female drawing of a male exercise,
+// `mv` the male drawing of a female one. The picture follows the body chosen in Settings.
+// The exercise id, the log and the plan stay on the same exercise either way.
+export const figureOf = S => (S?.exFigure === 'female' || S?.exFigure === 'male')
+  ? S.exFigure
+  : (S?.body === 'female' ? 'female' : 'male')
+const drawingId = (ex, figure) => (figure === 'female' ? ex?.fv : figure === 'male' ? ex?.mv : null) || null
+export const imgSrc = (ex, figure) => mediaSrc(IMG_BASE, drawingId(ex, figure) ? drawingId(ex, figure) + '.webp' : ex?.img)
+export const gifSrc = (ex, figure) => mediaSrc(GIF_BASE, drawingId(ex, figure) ? drawingId(ex, figure) + '.mp4' : ex?.gif)
+export const isVideoSrc = src => /\.(mp4|webm)(\?|$)/i.test(src || '')
 
 // Cardio exercises log time + speed instead of weight × reps.
 export const isCardio = idOrEx => (typeof idOrEx === 'string' ? EXIDX[idOrEx] : idOrEx)?.bp === 'cardio'

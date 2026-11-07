@@ -19,7 +19,7 @@ web/       multi-stage Dockerfile (builds frontend → nginx) + nginx.conf.templ
 mcp/       optional MCP server — read-only stdio bridge exposing a user's workouts/1RM/muscle
            balance to LLM clients (Claude Desktop, Cursor…). Not part of the Docker build; only
            runs when an LLM client spawns it.
-media/     exercise img/gif, gitignored, fetched at runtime by the `media` compose service.
+media/     exercise stills and loops, gitignored, fetched at runtime by the `media` compose service.
 docs/      SELF_HOSTING.md, MOBILE.md.
 ```
 
@@ -71,7 +71,7 @@ a signed Android APK, and a deploy of the server. Pull requests run `.github/wor
   - `finish-workout.js` — reduces a completed session back into state (weights advance, PRs, etc).
   - `recovery.js` / `recovery-view.js` — fatigue/muscle-recovery model.
   - `workout-model.js`, `supersetFlow.js` — in-session workout state machine, incl. supersets.
-  - `exercises.js` / `exercises-data.js` — the exercise library (1,324 built-ins + user-defined).
+  - `exercises.js` / `exercises-data.js` — the exercise library (5,632 built-ins + user-defined). Old ids are unchanged. A female drawing follows Settings → body.
   - `api.js` — the only place that talks to the backend (`fetch` wrapper, session cookie flows).
   - CONTRIBUTING.md is explicit: **anything that decides what you lift next, or reads a logged
     session back, is a pure helper here with a unit test beside it** — not verifiable by
