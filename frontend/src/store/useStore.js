@@ -10,6 +10,7 @@ import { mergeStates, localExtras } from '../lib/sync-merge.js'
 import { loadRemote, chooseLocal, forgetRemote, connect } from '../lib/remote.js'
 import { loadCoachDevice, saveCoachDevice, coachDeviceSettings } from '../lib/coach-device.js'
 import { adoptLinearWorkoutWeights } from '../lib/progression.js'
+import { replaceRetiredKettlebellIds } from '../lib/kettlebell-extra.js'
 import { normalizeMeasurementsState } from '../lib/measurements.js'
 
 import { WC_DEFAULT } from '../lib/workout-controls.js'
@@ -172,9 +173,11 @@ export const useStore = create((set, get) => {
     // The progressed workout weight is copied into the plan once, after the
     // copy this device will actually use is in hand (pull already settled).
     const S = get().S
-    if (S && !S.linearPlanAdopted) {
-      adoptLinearWorkoutWeights(S)
-      persist(S, true)
+    if (S) {
+      const moved = replaceRetiredKettlebellIds(S)
+      const adopt = !S.linearPlanAdopted
+      if (adopt) adoptLinearWorkoutWeights(S)
+      if (moved || adopt) persist(S, true)
     }
     set({ ready: true, ...extra })
     if (pushPending && get().user) {

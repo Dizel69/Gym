@@ -9,6 +9,7 @@
 //     a page break — each exercise, and each routine that fits, stays in one place.
 
 import { EXIDX, isBodyweightEq } from './exercises.js'
+import { KETTLEBELL_REPLACED } from './kettlebell-extra.js'
 import { modeOf, fmtSec, isBw, isPerSide, sideReps, MAX_PLANNED_WARMUPS } from './history.js'
 import { deriveSessionName } from './session-merge.js'
 import { uid, todayISO, DAYN, weekOrder, weekStartOf, fmtNum, exCount } from './format.js'
@@ -206,6 +207,7 @@ export function parsePlan(raw, destinationUnit = 'kg') {
   const routines = data.routines.filter(r => r && Array.isArray(r.ex)).map(r => ({
     ...r,
     ex: r.ex.filter(e => {
+      if (e && KETTLEBELL_REPLACED[e.id]) e.id = KETTLEBELL_REPLACED[e.id]
       const ok = !!e && (known.has(e.id) || !!EXIDX[e.id])
       if (!ok) dropped++
       return ok

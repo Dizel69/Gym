@@ -1,5 +1,5 @@
 import { EXALIAS, EXDB } from './exercises-data.js'
-import { KETTLEBELL_EXTRA } from './kettlebell-extra.js'
+import { KETTLEBELL_EXTRA, KETTLEBELL_REPLACED } from './kettlebell-extra.js'
 import { USER_EXERCISE_MUSCLE_OVERRIDES, exerciseMuscleMetadataFor } from './exercise-muscle-batch-1.js'
 import { t, getVersion, exerciseNameSearchText } from './i18n-core.js'
 
@@ -72,6 +72,12 @@ CATALOGUE.forEach(e => { EXIDX[e.id] = e })
 // of its own. Looking it up finds the exercise it draws. The property is not enumerable,
 // so a walk of the index still sees each exercise once, and a logged id never changes.
 for (const [id, to] of Object.entries(EXALIAS)) {
+  if (EXIDX[id] || !EXIDX[to]) continue
+  Object.defineProperty(EXIDX, id, { value: EXIDX[to], enumerable: false, configurable: true })
+}
+// A kettlebell id we used to invent, now that the catalogue has the same movement.
+// A plan or a log that still says the old id finds the catalogue exercise.
+for (const [id, to] of Object.entries(KETTLEBELL_REPLACED)) {
   if (EXIDX[id] || !EXIDX[to]) continue
   Object.defineProperty(EXIDX, id, { value: EXIDX[to], enumerable: false, configurable: true })
 }

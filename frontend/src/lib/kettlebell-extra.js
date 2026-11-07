@@ -1,7 +1,8 @@
-// Kettlebell movements that are not in the upstream exercise dataset.
-// Their pictures are not redrawn: `mediaId` points at a clip the app already
-// downloads with the rest of the catalogue. The files stay out of this repo.
-// A movement with no clip of its own keeps a small original drawing.
+// Kettlebell movements the catalogue still does not have. A movement that arrived
+// with the larger catalogue is not repeated here: KETTLEBELL_REPLACED points the
+// old id at that exercise, so a saved plan and a logged set keep their history.
+// Pictures are not redrawn. `mediaId` points at a clip the app already downloads.
+// The punch has no clip of its own and keeps a small original drawing.
 
 import { EXDB } from './exercises-data.js'
 
@@ -19,47 +20,56 @@ function move(id, mediaId, n, bp, primaries, secondaries, st) {
   }
 }
 
+// Old ids from before the larger catalogue. The value is the exercise that shows
+// the same movement, with its own picture.
+export const KETTLEBELL_REPLACED = {
+  'kb-halo': '2939',          // вращение гири вокруг головы
+  'kb-around': '4534',        // рогатки: круг вокруг пояса
+  'kb-full-swing': '3571',    // полный мах
+  'kb-upright': '4408',       // тяга к подбородку
+  'kb-deadlift': '3322',      // становая тяга
+  'kb-side-bend': '4396',     // наклон в сторону
+  'kb-plyo-squat': '3187',    // прыжок из кубкового приседа
+  'kb-curl': '5857',          // сгибание на бицепс
+  'kb-clean-press': '4531',   // взятие на грудь и жим одной рукой
+  'kb-swing-one': '1568',     // мах одной рукой
+  'kb-oh-ext': '5860',        // разгибание из-за головы
+  'kb-burst': '0542',         // рывок одной рукой
+  'kb-press': '3572',         // строгий жим
+  'kb-protyazhka': '0548',    // протяжка сумо
+}
+
+export function replaceRetiredKettlebellIds(state) {
+  if (!state) return false
+  let changed = false
+  const row = item => {
+    const to = item && KETTLEBELL_REPLACED[item.id]
+    if (!to) return
+    item.id = to
+    changed = true
+  }
+  for (const routine of state.routines || []) for (const ex of routine.ex || []) row(ex)
+  for (const workout of state.workouts || []) for (const entry of workout.entries || []) row(entry)
+  for (const entry of state.active?.entries || []) row(entry)
+  for (const bag of ['exWeights', 'exNotes', 'barWeights']) {
+    const obj = state[bag]
+    if (!obj) continue
+    for (const [from, to] of Object.entries(KETTLEBELL_REPLACED)) {
+      if (!Object.prototype.hasOwnProperty.call(obj, from)) continue
+      if (!Object.prototype.hasOwnProperty.call(obj, to)) obj[to] = obj[from]
+      delete obj[from]
+      changed = true
+    }
+  }
+  if (Array.isArray(state.favEx) && state.favEx.some(id => KETTLEBELL_REPLACED[id])) {
+    const seen = new Set()
+    state.favEx = state.favEx.map(id => KETTLEBELL_REPLACED[id] || id).filter(id => seen.has(id) ? false : seen.add(id))
+    changed = true
+  }
+  return changed
+}
+
 export const KETTLEBELL_EXTRA = [
-  {
-    id: 'kb-halo',
-    n: 'kettlebell halo',
-    bp: 'shoulders',
-    eq: 'kettlebell',
-    tg: 'delts',
-    mg: 'biceps',
-    sm: ['biceps', 'traps'],
-    primaries: ['front-deltoid', 'side-deltoid', 'rear-deltoid'],
-    secondaries: ['biceps', 'trapezius', 'forearm'],
-    img: pic('kb-halo'),
-    gif: pic('kb-halo'),
-    cat: 'strength',
-    st: [
-      'Встаньте прямо, ноги на ширине плеч. Возьмите гирю двумя руками за дужку у груди.',
-      'Поднимите гирю и обводите её вокруг головы плотным кругом: перед лицом, сбоку, за затылком и снова вперёд.',
-      'Локти широко, голова неподвижна. Крутится гиря, не шея.',
-      'Закончите круг у груди и сразу начните следующий. Потом смените направление.',
-    ],
-  },
-  {
-    id: 'kb-around',
-    n: 'kettlebell around the body',
-    bp: 'waist',
-    eq: 'kettlebell',
-    tg: 'delts',
-    mg: 'pectorals',
-    sm: ['upper back', 'abs'],
-    primaries: ['front-deltoid', 'side-deltoid', 'chest', 'rear-deltoid'],
-    secondaries: ['upper-back', 'obliques', 'forearm'],
-    img: mediaById['0532'].img,
-    gif: mediaById['0532'].gif,
-    cat: 'strength',
-    st: [
-      'Встаньте прямо. Возьмите гирю двумя руками перед бёдрами.',
-      'Проведите её по кругу вокруг корпуса: перед животом передайте из руки в руку, заведите за спину и снова передайте.',
-      'Гиря идёт вплотную к телу, без замаха и без остановки.',
-      'Сделайте несколько кругов в одну сторону, затем в другую.',
-    ],
-  },
   {
     id: 'kb-punch',
     n: 'kettlebell punch',
@@ -80,35 +90,11 @@ export const KETTLEBELL_EXTRA = [
       'Опустите гирю на пол, возьмите её другой рукой и повторите удар.',
     ],
   },
-  move('kb-full-swing', '0549', 'kettlebell full swing', 'upper legs',
-    ['gluteal', 'hamstring', 'front-deltoid'], ['quadriceps', 'lower-back', 'forearm'], [
-      'Поставьте ноги чуть шире плеч. Возьмите гирю двумя руками и заведите её между ног.',
-      'Качните бёдрами вперёд и пошлите гирю вверх до прямых рук над головой.',
-      'Дайте ей вернуться между ног и сразу начните следующий мах.',
-    ]),
-  move('kb-upright', '0548', 'kettlebell upright row', 'shoulders',
-    ['side-deltoid', 'trapezius'], ['biceps', 'front-deltoid', 'forearm'], [
-      'Встаньте прямо. Держите гирю двумя руками перед бёдрами.',
-      'Ведите её вверх к подбородку, локти расходятся в стороны и поднимаются выше кистей.',
-      'Опустите гирю вниз и повторите.',
-    ]),
-  move('kb-deadlift', '0300', 'kettlebell deadlift', 'upper legs',
-    ['hamstring', 'gluteal', 'lower-back'], ['quadriceps', 'forearm', 'trapezius'], [
-      'Поставьте гирю между стоп. Возьмите её двумя руками, спина ровная, таз уходит назад.',
-      'Встаньте, выпрямляя колени и таз. Гиря идёт вдоль ног.',
-      'Вернитесь в наклон и повторите.',
-    ]),
   move('kb-pass', '0532', 'kettlebell hand-to-hand pass', 'lower arms',
     ['forearm'], ['side-deltoid', 'obliques'], [
       'Встаньте прямо. Держите гирю одной рукой перед собой.',
       'Передайте её в другую руку у пояса, не роняя и не замахиваясь.',
       'Сразу передайте обратно. Кисти работают всё время.',
-    ]),
-  move('kb-side-bend', '0407', 'kettlebell side bend', 'waist',
-    ['obliques'], ['forearm', 'quadriceps'], [
-      'Встаньте прямо. Гиря в одной руке вдоль бедра.',
-      'Наклонитесь в сторону гири и вернитесь вверх за счёт бока.',
-      'Сделайте повторы на одну сторону, затем смените руку.',
     ]),
   move('kb-regrip', '0532', 'kettlebell regrip', 'lower arms',
     ['forearm'], ['biceps'], [
@@ -116,42 +102,11 @@ export const KETTLEBELL_EXTRA = [
       'Перехватите её другой рукой, не опуская на пол.',
       'Меняйте хват. Это работа для кистей и предплечий.',
     ]),
-  move('kb-plyo-squat', '0371', 'kettlebell plyo squat', 'upper legs',
-    ['quadriceps', 'gluteal'], ['hamstring', 'calves'], [
-      'Держите гирю двумя руками у груди.',
-      'Присядьте и сразу выпрыгните вверх, гиря остаётся у груди.',
-      'Приземлитесь мягко и сразу уйдите в следующий присед.',
-    ]),
-  move('kb-curl', '0294', 'kettlebell two-arm curl', 'upper arms',
-    ['biceps'], ['forearm'], [
-      'Встаньте прямо. Возьмите гирю двумя руками за дужку, руки выпрямлены.',
-      'Согните руки и поднимите гирю к груди. Локти остаются у корпуса.',
-      'Опустите и повторите.',
-    ]),
-  move('kb-clean-press', '0537', 'kettlebell clean and press', 'full body',
-    ['front-deltoid', 'quadriceps', 'gluteal'], ['triceps', 'hamstring', 'forearm', 'trapezius'], [
-      'Поставьте гирю между стоп и возьмите её одной рукой.',
-      'Поднимите её к плечу одним движением: гиря ложится на предплечье.',
-      'Выжмите вверх до прямой руки и верните к плечу.',
-      'Опустите на пол и повторите другой рукой.',
-    ]),
-  move('kb-swing-one', '0549', 'kettlebell one-arm swing', 'upper legs',
-    ['gluteal', 'hamstring'], ['quadriceps', 'lower-back', 'forearm'], [
-      'Ноги на ширине плеч. Гиря в одной руке между ног.',
-      'Качните бёдрами и пошлите гирю вперёд до высоты плеча. Свободная рука не держит дужку.',
-      'Дайте ей вернуться между ног и повторите. Затем смените руку.',
-    ]),
   move('kb-pendulum', '0549', 'kettlebell pendulum', 'waist',
     ['obliques'], ['forearm', 'gluteal'], [
       'Встаньте прямо. Держите гирю двумя руками перед собой.',
       'Раскачивайте её из стороны в сторону, как маятник. Корпус слегка уходит за гирей.',
       'Не сгибайте спину. Движение идёт от боков.',
-    ]),
-  move('kb-oh-ext', '0430', 'kettlebell overhead extension', 'upper arms',
-    ['triceps'], ['front-deltoid', 'forearm'], [
-      'Поднимите гирю двумя руками над головой.',
-      'Согните локти и опустите гирю за голову. Локти смотрят вверх.',
-      'Разогните руки и верните гирю над головой.',
     ]),
   move('kb-world', '0532', 'kettlebell around the world', 'waist',
     ['obliques', 'front-deltoid'], ['forearm', 'side-deltoid'], [
@@ -165,12 +120,6 @@ export const KETTLEBELL_EXTRA = [
       'Сделайте глубокий выпад: заднее колено опускается к полу, переднее согнуто.',
       'Оттолкнитесь передней ногой и вернитесь в стойку. Чередуйте ноги.',
     ]),
-  move('kb-burst', '0542', 'kettlebell snatch', 'full body',
-    ['front-deltoid', 'gluteal', 'trapezius'], ['hamstring', 'forearm', 'triceps'], [
-      'Гиря в одной руке между ног, свободная рука в стороне.',
-      'Качните бёдрами и вырвите гирю вверх до прямой руки над головой.',
-      'Опустите её обратно между ног и повторите. Затем смените руку.',
-    ]),
   move('kb-high-pull', '0548', 'kettlebell bent-over high pull', 'back',
     ['upper-back', 'trapezius', 'side-deltoid'], ['biceps', 'forearm'], [
       'Наклонитесь, спина ровная. Гиря в двух руках у колен.',
@@ -182,17 +131,5 @@ export const KETTLEBELL_EXTRA = [
       'Встаньте прямо. Гиря в одной руке, рука выпрямлена.',
       'Согните руку и поднимите гирю к плечу. Локоть у корпуса.',
       'Опустите и сразу сделайте то же другой рукой.',
-    ]),
-  move('kb-press', '0520', 'kettlebell one-arm press', 'shoulders',
-    ['front-deltoid', 'triceps'], ['side-deltoid', 'trapezius'], [
-      'Возьмите гирю к плечу. Она лежит на предплечье, локоть внизу.',
-      'Выжмите её вверх до прямой руки. Корпус не отклоняйте.',
-      'Опустите к плечу и повторите. Затем смените руку.',
-    ]),
-  move('kb-protyazhka', '0548', 'kettlebell upright pull', 'shoulders',
-    ['trapezius', 'side-deltoid'], ['biceps', 'forearm'], [
-      'Встаньте прямо. Гиря в двух руках перед бёдрами.',
-      'Подрывным движением бёдер протяните гирю вверх до уровня плеч, локти в стороны.',
-      'Опустите её вниз и повторите.',
     ]),
 ]
