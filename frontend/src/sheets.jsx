@@ -23,6 +23,8 @@ import { exerciseMuscleSnapshot, loadOfWorkouts, MUSCLES, MUSCLE_NAME, normalize
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } from './lib/import-hevy.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan, planPrintHTML } from './lib/plan-share.js'
+import { stampRoutine } from './lib/sync-merge.js'
+import { workoutCardModel, paintWorkoutCard, shareWorkoutCard } from './lib/workout-card.js'
 import { scheduleFor } from './lib/week-cycle.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { exerciseHistory, planWeightPoints } from './lib/exercise-history.js'
@@ -774,7 +776,7 @@ function AddToRoutine({ ex, close }) {
       update(s => {
         let r = isNew ? { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] } : s.routines.find(x => x.id === rid)
         if (isNew) s.routines.push(r)
-        if (r) r.ex.push({ id: ex.id, ...cfg })
+        if (r) { r.ex.push({ id: ex.id, ...cfg }); stampRoutine(r) }
       })
       const r = isNew ? S().routines[S().routines.length - 1] : st.routines.find(x => x.id === rid)
       toast(t('“{0}” added to {1}', capWords(exerciseNameFor(ex)), r ? r.name : t('routine')))
@@ -1573,22 +1575,58 @@ function PlanTools({ close }) {
 
   return <>
     <h3>{t('Share your plan')}</h3>
-    <div className="muted small" style={{ marginBottom: 16 }}>{t('Send your routines to a friend, or put your week on paper.')}</div>
+    <div className="muted small" style={{ marginBottom: 16 }}>{t('Send your routines to a friend, or print the ones you pick.')}</div>
     <Button variant="primary" icon="upload" onClick={exportFile} disabled={!hasRoutines}>{t('Export plan file')}</Button>
     <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('A small file a friend imports into their own openGym — routines only, none of your workouts or weigh-ins.')}</div>
     <div style={{ height: 12 }} />
-    <Button variant="tinted" icon="download" onClick={() => {
-      close()
-      // Web: the browser's print dialog (→ Save as PDF). Mobile: the OS print flow via the
-      // native Print plugin — Android WebView has no window.print(). Same printable HTML both ways.
-      if (MOBILE) printHtml(planPrintHTML(st, user?.name || ''), t('Weekly Training Plan')).catch(() => { /* dismissed */ })
-      else printPlan(st, user?.name || '')
-    }} disabled={!hasRoutines}>{t('Print / Save as PDF')}</Button>
-    <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('A clean one-page-per-plan printout — no exercise ever splits across a page.')}</div>
+    <Button variant="tinted" icon="download" onClick={() => { close(); printChooserSheet() }} disabled={!hasRoutines}>{t('Print / Save as PDF')}</Button>
+    <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('Pick one routine or several. The sheet lists the exercises, with weight, sets, reps and rest. No week schedule.')}</div>
     {!hasRoutines && <div className="dim small" style={{ margin: '12px 2px 0' }}>{t('Add an exercise to a routine first — an empty plan has nothing to share.')}</div>}
     <h4 className="sec">{t('Got a plan from a friend?')}</h4>
     <Button variant="ghost" icon="folder" onClick={() => fileRef.current?.click()}>{t('Import a plan file')}</Button>
     <input ref={fileRef} type="file" accept="application/json,.json" onChange={pickFile} hidden />
+  </>
+}
+
+export const printChooserSheet = () => ui().openSheet(close => <PrintChooser close={close} />)
+
+function PrintChooser({ close }) {
+  const st = useStore(s => s.S)
+  const user = useStore(s => s.user)
+  const routines = (st.routines || []).filter(r => r.ex && r.ex.length)
+  const [on, setOn] = useState(() => new Set(routines.map(r => r.id)))
+  const all = routines.length > 0 && on.size === routines.length
+  const toggle = id => setOn(cur => {
+    const next = new Set(cur)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const go = () => {
+    const ids = routines.filter(r => on.has(r.id)).map(r => r.id)
+    if (!ids.length) return
+    close()
+    // Web: the browser's print dialog (→ Save as PDF). Mobile: the OS print flow via the
+    // native Print plugin — Android WebView has no window.print(). Same printable HTML both ways.
+    const opts = { ids }
+    if (MOBILE) printHtml(planPrintHTML(st, user?.name || '', { ...opts, base: location.href }), t('Training plan')).catch(() => { /* dismissed */ })
+    else printPlan(st, user?.name || '', opts)
+  }
+  return <>
+    <h3>{t('What to print')}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>{t('Pick one routine or several. The sheet lists the exercises, with weight, sets, reps and rest. No week schedule.')}</div>
+    <div className="item" {...tappable(() => setOn(all ? new Set() : new Set(routines.map(r => r.id))))}>
+      <div className="grow"><div className="tt">{all ? t('Clear selection') : t('Select all')}</div></div>
+      {all && <Icon name="check" className="accent" />}
+    </div>
+    <div className="list">
+      {routines.map(r => <div key={r.id} className="item" {...tappable(() => toggle(r.id))}>
+        <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
+        <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
+        {on.has(r.id) && <Icon name="check" className="accent" />}
+      </div>)}
+    </div>
+    <div style={{ height: 12 }} />
+    <Button variant="primary" icon="download" onClick={go} disabled={!on.size}>{t('Print / Save as PDF')}</Button>
   </>
 }
 
@@ -1709,6 +1747,31 @@ function DayAddRoutine({ day, field = 'week', close }) {
 export const dayAddRoutineSheet = (day, field = 'week') => ui().openSheet(close => <DayAddRoutine day={day} field={field} close={close} />)
 
 /* ============================ workout detail ============================ */
+function WorkoutCardPreview({ w }) {
+  const canvasRef = useRef(null)
+  const unit = useStore(s => s.S.unit)
+  const model = useMemo(() => workoutCardModel(w, unit), [w, unit])
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (canvas) paintWorkoutCard(canvas, model)
+  }, [model])
+  const send = async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    try {
+      const how = await shareWorkoutCard(canvas, model.title)
+      if (how === 'saved') toast(t('Workout card saved'))
+    } catch (e) { /* the share sheet was dismissed */ }
+  }
+  return <>
+    <h3>{t('Workout card')}</h3>
+    <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', borderRadius: 16, background: '#121418' }} />
+    <div style={{ height: 14 }} />
+    <Button variant="primary" icon="upload" onClick={send}>{t('Send')}</Button>
+  </>
+}
+export const workoutCardSheet = w => ui().openSheet(close => <WorkoutCardPreview w={w} close={close} />)
+
 function WorkoutDetail({ w, close }) {
   const noteRef = useRef(null)
   const onNoteFocus = useSheetKeyboard(noteRef)
@@ -1788,6 +1851,8 @@ function WorkoutDetail({ w, close }) {
       placeholder={t('How the session went as a whole.')}
       onFocus={onNoteFocus} onChange={e => setNote(e.target.value)} onBlur={saveNote} />
     <div style={{ height: 14 }} />
+    <Button icon="upload" onClick={() => workoutCardSheet(w)}>{t('Workout card')}</Button>
+    <div style={{ height: 8 }} />
     <Button variant="danger" onClick={() => confirmSheet({ title: t('Delete workout?'), message: t('This removes it from your history for good.'), confirmText: t('Delete'), danger: true, onConfirm: () => { update(s => { s.workouts = s.workouts.filter(x => x.id !== w.id) }); close(); toast(t('Workout deleted')) } })}>{t('Delete workout')}</Button>
   </>
 }
@@ -2244,6 +2309,8 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     <h4 className="sec" style={{ textAlign: 'left' }}>{t('What you just trained')}</h4>
     <BodyMap load={loadOfWorkouts([w])} body={st.body} />
     <div style={{ height: 14 }} />
+    <Button icon="upload" onClick={() => workoutCardSheet(w)}>{t('Workout card')}</Button>
+    <div style={{ height: 8 }} />
     <Button variant="primary" onClick={() => { close(); nav('/home') }}>{t('Nice!')}</Button>
   </div>
 }

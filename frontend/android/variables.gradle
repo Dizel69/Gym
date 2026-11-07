@@ -1,6 +1,5 @@
 ext {
-    // Health Connect's client does not install below Android 8. The watch summary
-    // needs that library; the gym app itself has no reason to stay on Android 6.
+    // Android 8. The project already shipped at this floor.
     minSdkVersion = 26
     compileSdkVersion = 35
     targetSdkVersion = 35

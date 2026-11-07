@@ -8,8 +8,11 @@
  *
  * Rules, by field:
  *   - scalars and settings, `week`, `dayPlan`, `wc`, `reminder`, …: from the copy with the newer `_ts`
- *   - workouts, routines, customEx, equipProfiles, gymCards: union by id, the newer copy's version
+ *   - workouts, customEx, equipProfiles, gymCards: union by id, the newer copy's version
  *     of an id that both have; workouts sorted by day and start like every other writer
+ *   - routines: same union, except a shared id keeps the copy with the later `editedAt`.
+ *     A phone that only wrote steps still has a newer `_ts`, and that used to put its old
+ *     sets, weight and time back over a plan just saved on the other device.
  *   - bodyweight: union by day, the later-edited (`t`) entry of a day that both have
  *   - healthDays: union by day; the newer copy's numbers win, a field it omits stays
  *   - favEx: ordered set union, the newer copy first
@@ -52,6 +55,43 @@ export function unionById(newer = [], older = [], key = x => x?.id) {
 }
 
 const workoutKey = w => (w?.id != null ? w.id : `${w?.d}|${w?.start}`)
+
+/** A plan edit records when it happened. Health and other writes do not. */
+export function stampRoutine(routine, at = Date.now()) {
+  if (routine && typeof routine === 'object') routine.editedAt = at
+  return routine
+}
+
+const editedAtOf = routine => {
+  const n = Number(routine?.editedAt)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/**
+ * Union of two routine lists. The newer document's order and its copy of a shared id win,
+ * unless the older document's copy was edited later — then that saved plan is the one kept.
+ */
+export function mergeRoutines(newer = [], older = []) {
+  const olderById = new Map()
+  for (const routine of list(older)) {
+    if (routine?.id != null && !olderById.has(routine.id)) olderById.set(routine.id, routine)
+  }
+  const seen = new Set()
+  const out = []
+  for (const routine of list(newer)) {
+    if (routine?.id == null) { out.push(routine); continue }
+    if (seen.has(routine.id)) continue
+    seen.add(routine.id)
+    const prev = olderById.get(routine.id)
+    out.push(prev && editedAtOf(prev) > editedAtOf(routine) ? prev : routine)
+  }
+  for (const routine of list(older)) {
+    if (routine?.id == null || seen.has(routine.id)) continue
+    seen.add(routine.id)
+    out.push(routine)
+  }
+  return out
+}
 const byDayStart = (a, b) => (a.d === b.d ? (a.start || 0) - (b.start || 0) : a.d < b.d ? -1 : 1)
 
 /** One entry per day. Readings on either side are merged; a plain day still keeps the later edit. */
@@ -94,7 +134,8 @@ export function mergeStates(a, b, { prefer } = {}) {
   const o = n === a ? b : a
   const out = clone(n)
   out.workouts = unionById(n.workouts, o.workouts, workoutKey).map(clone).sort(byDayStart)
-  for (const f of ['routines', 'customEx', 'equipProfiles', 'gymCards']) {
+  if (list(n.routines).length || list(o.routines).length) out.routines = mergeRoutines(n.routines, o.routines).map(clone)
+  for (const f of ['customEx', 'equipProfiles', 'gymCards']) {
     if (list(n[f]).length || list(o[f]).length) out[f] = unionById(n[f], o[f]).map(clone)
   }
   out.bodyweight = mergeBodyweight(n.bodyweight, o.bodyweight).map(clone)

@@ -5,14 +5,13 @@
 //     routines + the week schedule + the custom exercises those routines use. It never
 //     carries workouts, weigh-ins or settings, and importing MERGES (adds routines with
 //     fresh ids) so nothing the friend already has is touched.
-//  2. A clean, printable page (Save as PDF) where a single exercise never splits across
-//     a page break — each exercise, and each routine that fits, stays in one place.
+//  2. A printable page of the routines you pick. No week grid and no pictures.
+//     Each exercise stays on one page piece, with its scheme and rest.
 
 import { EXIDX, isBodyweightEq } from './exercises.js'
 import { KETTLEBELL_REPLACED } from './kettlebell-extra.js'
 import { modeOf, fmtSec, isBw, isPerSide, sideReps, MAX_PLANNED_WARMUPS } from './history.js'
-import { deriveSessionName } from './session-merge.js'
-import { uid, todayISO, DAYN, weekOrder, weekStartOf, fmtNum, exCount } from './format.js'
+import { uid, todayISO, fmtNum, exCount } from './format.js'
 import { t, exerciseNameFor } from './i18n-core.js'
 import { convertWeight } from './units.js'
 import { MUSCLES, inMuscleOrder } from './muscles.js'
@@ -293,19 +292,22 @@ export function mergePlan(s, bundle, { schedule } = {}) {
 const esc = str => String(str == null ? '' : str)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-// One exercise's scheme, e.g. "3 × 10 · 60 kg", "3 × 0:45" or "2 × 20 min @ 8 km/h".
-function scheme(e, unit) {
+// One exercise's scheme, e.g. "3 × 10 · 60 kg · rest 90s", "3 × 0:45" or "2 × 20 min @ 8 km/h".
+// Rest is the exercise's own break, or the plan's default when the exercise never set one.
+function scheme(e, unit, restDefault) {
   const sets = e.sets || 1
   const mode = modeOf(e)
+  const rest = e.restSec > 0 ? e.restSec : (restDefault > 0 ? restDefault : 0)
+  const restBit = rest ? ` · ${t('rest {0}s', rest)}` : ''
   if (mode === 'cardio') {
     const body = `${e.min || 20} min @ ${fmtNum(e.speed || 8)} km/h`
-    return sets > 1 ? `${sets} × ${body}` : body
+    return (sets > 1 ? `${sets} × ${body}` : body) + restBit
   }
   let s = mode === 'time' ? `${sets} × ${fmtSec(e.sec || 45)}` : `${sets} × ${e.reps ?? 10}`
   if (e.weight) s += ` · ${isBw(e) ? '+' : ''}${fmtNum(e.weight)} ${unit}`
   // A printed plan is read at the rack, so the split earns its four characters.
   if (mode !== 'time' && isPerSide(e)) s += ` · ${t('{0}/side', fmtNum(sideReps(e.reps ?? 10)))}`
-  return s
+  return s + restBit
 }
 
 // Group consecutive exercises sharing a superset id into rendered units.
@@ -319,14 +321,14 @@ function units(ex) {
   return out
 }
 
-function routineHTML(r, unit) {
+function routineHTML(r, unit, restDefault) {
   const rows = units(r.ex).map(u => {
     const items = u.map(e => {
       const ex = EXIDX[e.id]
       const name = ex ? exerciseNameFor(ex) : t('Unknown exercise')
-      const part = ex && ex.bp && ex.bp !== 'cardio' ? `<span class="part">${esc(ex.bp)}</span>` : ''
+      const part = ex && ex.bp && ex.bp !== 'cardio' ? `<span class="part">${esc(t(ex.bp))}</span>` : ''
       const note = e.note ? `<div class="ex-note">${esc(e.note)}</div>` : ''
-      return `<div class="ex"><div class="ex-row"><div class="ex-n">${esc(name)}${part}</div><div class="ex-s">${esc(scheme(e, unit))}</div></div>${note}</div>`
+      return `<div class="ex"><div class="ex-row"><div class="ex-n">${esc(name)}${part}</div><div class="ex-s">${esc(scheme(e, unit, restDefault))}</div></div>${note}</div>`
     }).join('')
     return u.length > 1
       ? `<div class="ss"><div class="ss-tag">${esc(t('Superset'))}</div><div class="ss-items">${items}</div></div>`
@@ -339,28 +341,20 @@ function routineHTML(r, unit) {
   </section>`
 }
 
-function weekHTML(S) {
-  // The printout is read by whoever exported it, so the week runs in their order.
-  const rows = weekOrder(weekStartOf(S)).map(d => {
-    const names = [].concat(S.week?.[d] || [])
-      .map(id => S.routines.find(x => x.id === id)?.name)
-      .filter(Boolean)
-    const val = names.length ? esc(deriveSessionName(names)) : `<span class="rest">${esc(t('Rest'))}</span>`
-    return `<div class="w-row"><div class="w-day">${esc(t(DAYN[d]))}</div><div class="w-r">${val}</div></div>`
-  }).join('')
-  return `<div class="week">${rows}</div>`
-}
-
-/** Full self-contained HTML for the print/PDF view. */
-export function planPrintHTML(S, owner) {
+/** Full self-contained HTML for the print/PDF view.
+ *  `opts.ids` limits the page to those routines. Omit it and every routine with
+ *  exercises is included. The week grid is never printed. */
+export function planPrintHTML(S, owner, opts = {}) {
   const unit = S.unit || 'kg'
-  const routines = (S.routines || []).filter(r => r.ex && r.ex.length)
+  const ids = Array.isArray(opts.ids) ? new Set(opts.ids) : null
+  let routines = (S.routines || []).filter(r => r.ex && r.ex.length)
+  if (ids) routines = routines.filter(r => ids.has(r.id))
   const body = routines.length
-    ? routines.map(r => routineHTML(r, unit)).join('')
+    ? routines.map(r => routineHTML(r, unit, S.restSec)).join('')
     : `<p class="none">${esc(t('No routines yet.'))}</p>`
   const sub = [owner, todayISO()].filter(Boolean).map(esc).join(' · ')
   return `<!doctype html><html><head><meta charset="utf-8">
-<title>${esc(t('Weekly Training Plan'))}</title>
+<title>${esc(t('Training plan'))}</title>
 <style>
   @page { margin: 16mm 15mm; }
   * { box-sizing: border-box; }
@@ -376,16 +370,7 @@ export function planPrintHTML(S, owner) {
   header h1 { font-size: 27px; letter-spacing: -.02em; margin: 3px 0 0; }
   header .sub { color: #6b7180; font-size: 13px; margin-top: 4px; }
 
-  h3.block { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8a90a0; margin: 0 0 8px; font-weight: 700; }
-
-  .week { border: 1px solid #e4e6ec; border-radius: 10px; overflow: hidden; margin-bottom: 26px; break-inside: avoid; page-break-inside: avoid; }
-  .w-row { display: flex; align-items: baseline; padding: 8px 14px; border-top: 1px solid #eef0f4; }
-  .w-row:first-child { border-top: 0; }
-  .w-day { width: 116px; font-weight: 600; color: #16181d; flex: none; }
-  .w-r { text-transform: capitalize; }
-  .rest, .w-r .rest { color: #a2a8b6; text-transform: none; }
-
-  .routine { break-inside: avoid; page-break-inside: avoid; margin-bottom: 20px; padding: 14px 16px; border: 1px solid #e4e6ec; border-radius: 12px; }
+  .routine { margin-bottom: 20px; padding: 14px 16px; border: 1px solid #e4e6ec; border-radius: 12px; }
   .r-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid #eef0f4; padding-bottom: 8px; margin-bottom: 8px; break-after: avoid; page-break-after: avoid; }
   .r-head h2 { font-size: 18px; letter-spacing: -.01em; margin: 0; text-transform: capitalize; }
   .r-count { font-size: 12px; color: #8a90a0; white-space: nowrap; }
@@ -394,9 +379,9 @@ export function planPrintHTML(S, owner) {
   .ex { display: flex; flex-direction: column; padding: 6px 0; break-inside: avoid; page-break-inside: avoid; }
   .ex + .ex, .ss + .ex, .ex + .ss { border-top: 1px solid #f2f3f6; }
   .ex-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
-  .ex-n { text-transform: capitalize; font-weight: 500; }
+  .ex-n { text-transform: capitalize; font-weight: 500; flex: 1; }
   .ex-n .part { text-transform: capitalize; color: #9aa0ae; font-weight: 400; font-size: 12px; margin-left: 8px; }
-  .ex-s { color: #3d424e; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ex-s { color: #3d424e; text-align: right; font-variant-numeric: tabular-nums; }
   .ex-note { color: #6a7080; font-size: 12px; margin-top: 2px; }
   .ex.empty, .none { color: #a2a8b6; }
 
@@ -409,12 +394,9 @@ export function planPrintHTML(S, owner) {
 <body><div class="doc">
   <header>
     <div class="kicker">openGym</div>
-    <h1>${esc(t('Weekly Training Plan'))}</h1>
+    <h1>${esc(t('Training plan'))}</h1>
     ${sub ? `<div class="sub">${sub}</div>` : ''}
   </header>
-  <h3 class="block">${esc(t('Week schedule'))}</h3>
-  ${weekHTML(S)}
-  <h3 class="block">${esc(t('Routines'))}</h3>
   ${body}
   <footer>${esc(t('Made with openGym'))}</footer>
 </div></body></html>`
@@ -424,7 +406,7 @@ export function planPrintHTML(S, owner) {
  * Render the plan and open the browser's print dialog (→ Save as PDF).
  * Uses a hidden iframe so we never navigate away or trip a popup blocker.
  */
-export function printPlan(S, owner) {
+export function printPlan(S, owner, opts = {}) {
   const ifr = document.createElement('iframe')
   ifr.setAttribute('aria-hidden', 'true')
   ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;'
@@ -439,8 +421,18 @@ export function printPlan(S, owner) {
     try { w.print() } catch (e) { cleanup() }
   }
   const doc = ifr.contentWindow.document
-  doc.open(); doc.write(planPrintHTML(S, owner)); doc.close()
-  // Give the iframe a tick to lay out before printing.
-  if (doc.readyState === 'complete') setTimeout(run, 120)
-  else ifr.onload = () => setTimeout(run, 120)
+  doc.open(); doc.write(planPrintHTML(S, owner, opts)); doc.close()
+  // The page is text. The wait still covers a picture if one is ever added back.
+  const wait = () => {
+    const imgs = [...doc.images]
+    if (!imgs.length) { setTimeout(run, 60); return }
+    let pending = imgs.length
+    const tick = () => { if (--pending <= 0) setTimeout(run, 60) }
+    for (const img of imgs) {
+      if (img.complete) tick()
+      else { img.addEventListener('load', tick); img.addEventListener('error', tick) }
+    }
+  }
+  if (doc.readyState === 'complete') wait()
+  else ifr.onload = wait
 }

@@ -110,3 +110,32 @@ test('GET/PUT /api/data: revisions, conditional writes and the legacy overwrite'
   assert.equal(r.body.error, 'invalid state');
   assert.equal(onDisk()._rev, 4);
 });
+
+test('PUT /api/data keeps a plan that was saved later than the copy being pushed', async t => {
+  const h = await startServer(t);
+  const uid = 'u_rev_1';
+  const headersFor = headers(uid);
+  const put = async body => {
+    const r = await fetch(`${h.api}/api/data`, { method: 'PUT', headers: headersFor, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json() };
+  };
+  const onDisk = () => JSON.parse(fs.readFileSync(path.join(h.dataDir, `state-${uid}.json`), 'utf8'));
+  const saved = { id: 'r1', name: 'Жим', editedAt: 500, ex: [{ id: '0025', sets: 5, weight: 80, sec: 45 }] };
+  const stale = { id: 'r1', name: 'Жим', ex: [{ id: '0025', sets: 3, weight: 60, sec: 30 }] };
+
+  let r = await put({ state: { _ts: 100, workouts: [], routines: [saved] }, baseRev: 0 });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.state, undefined, 'an ordinary write does not echo the document');
+
+  r = await put({ state: { _ts: 900, workouts: [{ id: 'w-phone', d: '2026-11-08' }], routines: [stale] }, baseRev: 1 });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.rev, 2);
+  assert.deepEqual(onDisk().routines[0].ex[0], saved.ex[0]);
+  assert.equal(onDisk().workouts[0].id, 'w-phone', 'the phone workout still lands');
+  assert.deepEqual(r.body.state.routines[0].ex[0], saved.ex[0]);
+
+  // a backup import sends no baseRev and is allowed to replace the plan
+  r = await put({ state: { _ts: 1000, workouts: [], routines: [stale] } });
+  assert.equal(r.status, 200);
+  assert.equal(onDisk().routines[0].ex[0].weight, 60);
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { localExtras, mergeBodyweight, mergeStates, newerOf, unionById } from './sync-merge.js'
+import { localExtras, mergeBodyweight, mergeRoutines, mergeStates, newerOf, unionById } from './sync-merge.js'
 
 const workout = (id, d = '2026-09-01', start = 1) => ({ id, d, start, entries: [] })
 const routine = (id, name = id) => ({ id, name, ex: [] })
@@ -59,6 +59,20 @@ describe('mergeStates', () => {
     expect(m.bodyweight.map(b => b.d)).toEqual(['2026-08-30', '2026-09-01'])
     expect(m.favEx).toEqual(['x', 'y', 'z'])
     expect(new Set(ids(m.workouts)).size).toBe(m.workouts.length)
+  })
+
+  it('a later plan edit wins even when the other document is newer', () => {
+    const phone = base({
+      _ts: 900,
+      routines: [{ id: 'shared', name: 'Жим', ex: [{ id: '0025', sets: 3, reps: 8, weight: 60, sec: 30 }] }],
+    })
+    const computer = base({
+      _ts: 100,
+      routines: [{ id: 'shared', name: 'Жим', editedAt: 500, ex: [{ id: '0025', sets: 5, reps: 5, weight: 80, mode: 'time', sec: 45 }] }],
+    })
+    const merged = mergeStates(phone, computer)
+    expect(merged.routines.find(r => r.id === 'shared').ex[0]).toMatchObject({ sets: 5, weight: 80, sec: 45 })
+    expect(mergeRoutines(phone.routines, computer.routines)[0].editedAt).toBe(500)
   })
 
   it('the newer copy decides settings, week, and a shared id; the other way round too', () => {

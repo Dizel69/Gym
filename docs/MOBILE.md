@@ -8,7 +8,6 @@ openGym ships in two flavors from the same codebase:
 | Accounts | passkey sign-in, one profile per person | none — the phone *is* the account |
 | Data | synced to your server, readable on desktop | stays on the device (file in the app's private storage) |
 | Reminders | Web Push from your server | native local notifications, no server involved |
-| Watch | shows steps, sleep and active calories the phone already synced | reads them from Health Connect (Samsung Health shares into it). Workouts are not imported |
 | Exercise media | served by your server (`img/`, `gif/`) | packed into the APK (~190 MB), so it works offline |
 
 The mobile flavor never talks to a backend by default: no sign-in screen, no sync, no

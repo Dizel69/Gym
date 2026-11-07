@@ -1025,9 +1025,30 @@ const routes = {
       return json(res, 409, { error: 'conflict', rev: curRev, state: cur });
     }
     delete body.state.active;              // in-progress workouts stay device-local
+    // A phone that only synced steps still carries a newer `_ts` and its old copy of the
+    // plan. Keep a routine the server already has when that copy was saved later than the
+    // one just pushed. A push with no baseRev is a deliberate replace (backup import) and
+    // is allowed to roll a plan back.
+    let keptPlan = false;
+    if (body.baseRev != null && cur && Array.isArray(cur.routines) && Array.isArray(body.state.routines)) {
+      const stored = new Map();
+      for (const routine of cur.routines) {
+        if (routine && routine.id != null && !stored.has(routine.id)) stored.set(routine.id, routine);
+      }
+      body.state.routines = body.state.routines.map(routine => {
+        if (!routine || routine.id == null) return routine;
+        const prev = stored.get(routine.id);
+        const prevAt = Number(prev?.editedAt);
+        const nextAt = Number(routine.editedAt);
+        const prevStamp = Number.isFinite(prevAt) && prevAt > 0 ? prevAt : 0;
+        const nextStamp = Number.isFinite(nextAt) && nextAt > 0 ? nextAt : 0;
+        if (prev && prevStamp > nextStamp) { keptPlan = true; return prev; }
+        return routine;
+      });
+    }
     body.state._rev = curRev + 1;          // server-owned; whatever the client sent is ignored
     atomicWrite(stateFile(user.id), JSON.stringify(body.state));
-    json(res, 200, { ok: true, ts: body.state._ts || null, rev: body.state._rev });
+    json(res, 200, { ok: true, ts: body.state._ts || null, rev: body.state._rev, ...(keptPlan ? { state: body.state } : {}) });
   },
 
   'GET /api/push/public-key': async (req, res) => json(res, 200, { key: vapid.publicKey }),

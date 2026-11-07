@@ -9,6 +9,7 @@ import { t, exerciseNameFor } from '../lib/i18n.js'
 import { supersetUnits, moveSupersetUnit, cleanupSg, exLine, defaultConfig } from '../lib/history.js'
 import { Thumb } from '../components/Media.jsx'
 import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet } from '../sheets.jsx'
+import { stampRoutine } from '../lib/sync-merge.js'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { Button, Row, SelectRow, Switch } from '../components/ui.jsx'
@@ -315,7 +316,12 @@ export default function RoutineEdit() {
   // auto-backup on the way out (not per keystroke) covers the whole editing session, deletion
   // included: this still unmounts after the delete button navigates away.
   useEffect(() => () => useStore.getState().autoBackupNow(), [])
-  const edit = fn => update(s => { fn(s.routines.find(x => x.id === id).ex) })
+  const edit = fn => update(s => {
+    const routine = s.routines.find(x => x.id === id)
+    if (!routine) return
+    fn(routine.ex)
+    stampRoutine(routine)
+  })
   const reorder = useRoutineReorder(r, r?.ex || [], (sourceIndex, targetSlot) => {
     edit(exercises => { reorderRoutineUnit(exercises, sourceIndex, targetSlot) })
   })
@@ -350,21 +356,38 @@ export default function RoutineEdit() {
       <button className="iconbtn" onClick={() => nav('/plan')} aria-label={t('Plan')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, margin: '0 12px' }}>
         <input className="input" defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
-          onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })} />
+          onChange={e => update(s => {
+            const routine = s.routines.find(x => x.id === id)
+            if (!routine) return
+            routine.name = e.target.value.trim() || t('Routine')
+            stampRoutine(routine)
+          })} />
       </div>
-      <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
+      <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => {
+        const routine = s.routines.find(x => x.id === id)
+        if (!routine) return
+        routine.emoji = g
+        stampRoutine(routine)
+      }))}><Icon name={glyphOf(r.emoji)} /></button>
     </div>
 
     <div className="sect-b" style={{ marginBottom: 16 }}>
       <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
-        value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
+        value={r.prog || 'linear'} onChange={v => update(s => {
+          const routine = s.routines.find(x => x.id === id)
+          if (!routine) return
+          routine.prog = v
+          stampRoutine(routine)
+        })}
         options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />
       <Row icon="pause" iconTint="var(--orange)" title={t('Exclude from automatic progression')}
         subtitle={t('Use for planned deloads. Workouts stay in history and statistics.')}>
         <Switch checked={r.excludeFromProgression === true} onChange={v => update(s => {
           const routine = s.routines.find(x => x.id === id)
+          if (!routine) return
           if (v) routine.excludeFromProgression = true
           else delete routine.excludeFromProgression
+          stampRoutine(routine)
         })} />
       </Row>
     </div>

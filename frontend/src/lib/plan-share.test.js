@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPlanBundle, mergePlan, parsePlan } from './plan-share.js'
+import { buildPlanBundle, mergePlan, parsePlan, planPrintHTML } from './plan-share.js'
 
 // There was no test file for plan sharing at all, which is how a whole prescription field
 // went missing without anyone noticing.
@@ -254,5 +254,34 @@ describe('custom exercises in a shared plan', () => {
     mergePlan(target, parsed)
     expect(target.customEx).toEqual([mine])
     expect(target.routines[0].ex[0].id).toBe('mine')
+  })
+})
+
+describe('printable plan', () => {
+  const S = {
+    unit: 'kg', restSec: 90, body: 'male',
+    week: { 1: ['a'] },
+    routines: [
+      { id: 'a', name: 'Жим', ex: [{ id: '0025', sets: 3, reps: 8, weight: 80, restSec: 120 }] },
+      { id: 'b', name: 'Тяга', ex: [{ id: '0032', sets: 3, reps: 5, weight: 100 }] },
+    ],
+  }
+
+  it('prints only the chosen routines, with the scheme and the rest, and no week or pictures', () => {
+    const html = planPrintHTML(S, '', { ids: ['a'], base: 'https://gym.example/' })
+    expect(html).toContain('Жим')
+    expect(html).not.toContain('Тяга')
+    expect(html).not.toContain('Week schedule')
+    expect(html).not.toContain('week')
+    expect(html).not.toContain('<img')
+    expect(html).toContain('3 × 8')
+    expect(html).toContain('80 kg')
+    expect(html).toContain('rest 120s')
+  })
+
+  it('uses the plan rest when the exercise has none of its own', () => {
+    const html = planPrintHTML(S, '', { ids: ['b'], base: 'https://gym.example/' })
+    expect(html).toContain('rest 90s')
+    expect(html).toContain('100 kg')
   })
 })

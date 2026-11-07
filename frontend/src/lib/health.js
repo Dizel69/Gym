@@ -1,16 +1,13 @@
-/* A day's watch summary, kept beside the workout log and never fed into it.
- *
- * The phone reads Health Connect (Samsung Health shares steps, sleep and active
- * calories into it) and writes one small row per local day. The website shows
- * those rows after the phone syncs. A missing field means "this read didn't
- * include it" — a later merge keeps the number already stored.
+/* Old watch rows that may still sit in a saved profile. Nothing reads Health
+ * Connect or shows these numbers. A later sync still merges them so an older
+ * phone does not wipe a day it already stored.
  *
  *   { d: 'YYYY-MM-DD', steps?: number, sleepMin?: number, activeKcal?: number }
  */
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
-/** Settings switch. An older profile with no key still imports. */
+/** Kept so an older saved profile still parses. Nothing in the app calls it. */
 export const healthImportOn = S => S?.healthImport !== false
 
 function numOrNull(v) {

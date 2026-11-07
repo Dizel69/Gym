@@ -9,7 +9,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode ((project.findProperty('versionCodeOverride') ?: '22').toInteger())
-        versionName ((project.findProperty('versionNameOverride') ?: '2.2.2'))
+        versionName ((project.findProperty('versionNameOverride') ?: '2.3.0'))
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -50,11 +50,6 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    // Stable connect-client 1.1.0 demands compileSdk 36 and AGP 8.9. This project
-    // is compileSdk 35 / AGP 8.7.2, so the last release that still builds here is
-    // 1.1.0-alpha12. Read-only: steps, sleep, active calories.
-    implementation "androidx.health.connect:connect-client:1.1.0-alpha12"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
