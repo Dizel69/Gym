@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
-import { CATALOGUE, BODYPARTS, allExercises, equipmentOf, searchExercises } from '../lib/exercises.js'
+import { CATALOGUE, BODYPARTS, allExercises, categoriesOf, equipmentOf, searchExercises } from '../lib/exercises.js'
 import { MUSCLE_NAME } from '../lib/muscles.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { bestWeightFor } from '../lib/history.js'
@@ -19,18 +19,25 @@ export default function Library() {
   const S = useStore(s => s.S)
   const [q, setQ] = useState('')
   const [bp, setBp] = useState('')
+  const [cat, setCat] = useState('')
   const [eq, setEq] = useState('')
   const [showAll, setShowAll] = useState(false)   // ignore the active equipment profile for this session
   const [shown, setShown] = useState(40)
-  const bpStrip = useRef(null), eqStrip = useRef(null)
+  const catStrip = useRef(null), bpStrip = useRef(null), eqStrip = useRef(null)
   const profile = activeProfile(S)
-  const base = searchExercises(allExercises(S).filter(e => !bp || e.bp === bp), q)
-  const eqFiltered = (profile && !showAll) ? base.filter(e => exAvailable(S, e)) : base
-  const eqOpts = equipmentOf(eqFiltered)
-  // Drop the equipment filter if the search narrowed it away, so you never hit a dead end.
+  const searched = searchExercises(allExercises(S), q)
+  const available = (profile && !showAll) ? searched.filter(e => exAvailable(S, e)) : searched
+  const catOpts = categoriesOf(available)
+  // A type the search has narrowed away is ignored for this view, and the choice stays
+  // so clearing the search brings it back.
+  const catOn = catOpts.includes(cat) ? cat : ''
+  const typed = catOn ? available.filter(e => e.cat === catOn) : available
+  const inPart = bp ? typed.filter(e => e.bp === bp) : typed
+  const eqOpts = equipmentOf(inPart)
   const eqOn = eqOpts.includes(eq) ? eq : ''
   // Favourites float to the top of whatever the filters left (issue #6), the rest keeps its order.
-  const f = sortFavouritesFirst(eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered, S)
+  const f = sortFavouritesFirst(eqOn ? inPart.filter(e => e.eq === eqOn) : inPart, S)
+  useRevealActiveChip(catStrip, catOn)
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
 
@@ -50,6 +57,10 @@ export default function Library() {
     {/* Changing body part keeps the equipment filter (issue #71): the eqOn fallback above drops
         it only for the current view if the new body part has nothing under it, without forgetting
         the choice. "All" clears it, since it spans every body part. */}
+    {catOpts.length > 1 && <div className="chips" ref={catStrip} style={{ marginBottom: 8 }}>
+      <button className={'chip nocap' + (!catOn ? ' on' : '')} onClick={() => { setCat(''); setShown(40) }}>{t('Any type')}</button>
+      {catOpts.map(c => <button key={c} className={'chip' + (catOn === c ? ' on' : '')} onClick={() => { setCat(c); setShown(40) }}>{t(c)}</button>)}
+    </div>}
     <div className="chips" ref={bpStrip} style={{ marginBottom: eqOpts.length > 1 ? 8 : 12 }}>
       <button className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setEq(''); setShown(40) }}>{t('All')}</button>
       {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setShown(40) }}>{t(b)}</button>)}

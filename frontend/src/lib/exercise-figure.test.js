@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EXALIAS, EXDB } from './exercises-data.js'
-import { EXIDX, exOr, figureOf, gifSrc, imgSrc } from './exercises.js'
+import { CATEGORIES, EXIDX, categoriesOf, exOr, figureOf, gifSrc, imgSrc } from './exercises.js'
 
 describe('catalogue of 5632 exercises', () => {
   const byId = Object.fromEntries(EXDB.map(exercise => [exercise.id, exercise]))
@@ -33,5 +33,10 @@ describe('catalogue of 5632 exercises', () => {
     expect(Object.keys(EXIDX)).not.toContain(byId['0025'].fv)
     expect(Object.values(EXIDX).filter(exercise => exercise.id === '0025')).toHaveLength(1)
     for (const id of Object.keys(EXALIAS)) expect(EXDB.some(exercise => exercise.id === id), id).toBe(false)
+  })
+
+  it('offers training types in a fixed order, and only the ones in the list', () => {
+    expect(categoriesOf(EXDB)).toEqual(CATEGORIES)
+    expect(categoriesOf([{ cat: 'yoga' }, { cat: 'stretching' }, { n: 'custom' }])).toEqual(['stretching', 'yoga'])
   })
 })

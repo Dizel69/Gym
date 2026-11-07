@@ -15,7 +15,7 @@ function move(id, mediaId, n, bp, primaries, secondaries, st) {
     id, n, bp, eq: 'kettlebell',
     tg: primaries[0], mg: secondaries[0] || primaries[0],
     sm: secondaries, primaries, secondaries,
-    img: src.img, gif: src.gif, st,
+    img: src.img, gif: src.gif, st, cat: 'strength',
   }
 }
 
@@ -32,6 +32,7 @@ export const KETTLEBELL_EXTRA = [
     secondaries: ['biceps', 'trapezius', 'forearm'],
     img: pic('kb-halo'),
     gif: pic('kb-halo'),
+    cat: 'strength',
     st: [
       'Встаньте прямо, ноги на ширине плеч. Возьмите гирю двумя руками за дужку у груди.',
       'Поднимите гирю и обводите её вокруг головы плотным кругом: перед лицом, сбоку, за затылком и снова вперёд.',
@@ -51,6 +52,7 @@ export const KETTLEBELL_EXTRA = [
     secondaries: ['upper-back', 'obliques', 'forearm'],
     img: mediaById['0532'].img,
     gif: mediaById['0532'].gif,
+    cat: 'strength',
     st: [
       'Встаньте прямо. Возьмите гирю двумя руками перед бёдрами.',
       'Проведите её по кругу вокруг корпуса: перед животом передайте из руки в руку, заведите за спину и снова передайте.',
@@ -70,6 +72,7 @@ export const KETTLEBELL_EXTRA = [
     secondaries: ['obliques', 'serratus', 'forearm'],
     img: pic('kb-punch'),
     gif: pic('kb-punch'),
+    cat: 'strength',
     st: [
       'Поставьте гирю на пол между стоп, возьмите её одной рукой и поднимите к плечу. Гиря лежит на предплечье у ключицы, локоть прижат к корпусу. Свободная рука у подбородка.',
       'Вверх не жмите. Выпрямите руку вперёд на уровне плеча и толкните гирю от себя. Корпус немного уходит за рукой.',

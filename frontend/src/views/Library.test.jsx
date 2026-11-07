@@ -83,4 +83,14 @@ describe('Library favourites', () => {
     expect(shown[0]).toBe(chest[4].n)
     expect(shown).not.toContain(legs.n)
   })
+
+  it('filters by training type without dropping the body-part row', () => {
+    const host = render()
+    const chip = [...host.querySelectorAll('.chips .chip')].find(b => b.textContent === 'yoga')
+    act(() => chip.click())
+    const shown = names(host)
+    expect(shown.length).toBeGreaterThan(0)
+    for (const n of shown) expect(EXDB.find(e => e.n === n).cat).toBe('yoga')
+    expect([...host.querySelectorAll('.chips .chip')].some(b => b.textContent === 'chest')).toBe(true)
+  })
 })

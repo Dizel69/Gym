@@ -86,6 +86,16 @@ export function equipmentOf(list) {
   return Object.keys(c).sort((a, b) => c[b] - c[a] || (a < b ? -1 : 1))
 }
 
+// Training type, in the order the chip row reads: lifting first, then the
+// kinds that are not a body part of their own (a stretch of the chest still
+// lives under Chest). A list only offers the types it actually contains.
+export const CATEGORIES = ['strength', 'calisthenics', 'olympic', 'plyometrics', 'isometric', 'cardio', 'stretching', 'mobility', 'yoga', 'pilates', 'combat', 'rehab']
+export function categoriesOf(list) {
+  const have = new Set()
+  for (const e of list || []) if (e?.cat) have.add(e.cat)
+  return CATEGORIES.filter(c => have.has(c))
+}
+
 // Custom (user-created) exercises live in synced state S.customEx (issue #11) and are
 // merged into the id index here so every EXIDX[id] lookup keeps working unchanged.
 let customIds = []
