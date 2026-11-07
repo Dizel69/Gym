@@ -71,7 +71,7 @@ function MeasureGuide({ close }) {
       <span style={{ width: 36 }} />
     </div>
     <h3 style={{ textAlign: 'center' }}>{title}</h3>
-    <MeasureFigure part={step.key} />
+    <MeasureFigure part={step.key} body={S.body === 'female' ? 'female' : 'male'} />
     <p className="muted small" style={{ margin: '12px 2px 4px', lineHeight: 1.4 }}>{t(measureHint(step.key))}</p>
     <div className="bwin measure-in">
       <NumberField nullable autoFocus value={n} onChange={setN} aria-label={title}
