@@ -15,6 +15,7 @@ import { readingCount } from '../lib/weigh-ins.js'
 import { MEASUREMENT_FIELDS, measurementSeries, measurementUnit, measurementUnitLabel } from '../lib/measurements.js'
 import { measurementGuideSheet } from '../components/MeasureGuide.jsx'
 import { YearHomeCard } from '../components/YearReview.jsx'
+import MonthGoals from '../components/MonthGoals.jsx'
 
 function WaistCard({ S }) {
   const nav = useNavigate()
@@ -145,6 +146,8 @@ export default function Home() {
       </div>}
       <TodaySuggestion S={S} />
     </div>
+
+    <MonthGoals S={S} />
 
     <YearHomeCard />
 

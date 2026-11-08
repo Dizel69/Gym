@@ -1490,4 +1490,13 @@ export default {
   "Create user": "Создать пользователя",
   "Saving…": "Сохранение…",
   "Sign in": "Войти",
+  'Monthly goals': 'Цели месяца',
+  'A game from your past months. Unfinished goals end with the month.': 'Игра по прошлым месяцам. Несделанное кончается вместе с месяцем.',
+  'Rewards': 'Награды',
+  'A medal changes when a later month beats it.': 'Медаль меняется, когда следующий месяц её обгоняет.',
+  'Months you cleared': 'Закрытые месяцы',
+  'Not yet': 'Ещё нет',
+  'Clear every goal in a month and its medal stays here.': 'Закройте все цели месяца — медаль останется здесь.',
+  'Monthly medals': 'Медали по месяцам',
+  'One picture for every month, through 2030.': 'Свой рисунок на каждый месяц, до 2030 года.',
 }
