@@ -58,7 +58,7 @@ export function StrengthLevelsCard({ S, onOpen }) {
       const ex = EXIDX[lv.id]
       const name = ex ? exerciseNameFor(ex) : lv.id
       return <button key={lv.lift} type="button" className="slevel-row" onClick={() => onOpen?.(lv.id)}>
-        <span className="slevel-ex capitalize">{name}</span>
+        <span className="slevel-ex">{name}</span>
         <span className="slevel-meta"><b>{t(LEVEL_NAME[lv.name])}</b> · {fmtRatio(lv.ratio)}×</span>
         <NextLine lv={lv} unit={S.unit} />
       </button>

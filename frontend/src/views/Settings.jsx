@@ -10,7 +10,7 @@ import { unlock, playOnSilentSupported } from '../lib/sound.js'
 import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush, syncPushSubscription } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
-import { t, LANGS, INSTR_LANGS } from '../lib/i18n.js'
+import { t, LANGS, INSTR_LANGS, dateLocale } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, isAndroid, shareExport, syncReminder } from '../lib/mobile.js'
 import { checkForUpdate, downloadAndInstall, fetchReleaseText, RELEASES_PAGE } from '../lib/update.js'
@@ -19,6 +19,24 @@ import { ConnectSheet } from './MobileOnboarding.jsx'
 import { starterPlanSheet, confirmSheet, importFromApp, importFromHevy, equipmentProfileSheet, menuSheet, askAddDeviceData } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
+import { reviewYears, yearReview } from '../lib/year-review.js'
+import { yearReviewSheet } from '../components/YearReview.jsx'
+
+function YearArchive({ S }) {
+  const years = reviewYears(S)
+  if (!years.length) return null
+  return <Section title={t('Your year')} footer={t('Worked out from your log, so a past year stays open any month.')}>
+    {years.map(year => {
+      const review = yearReview(S, year)
+      const lifted = review.tonnes >= 1
+        ? t('{0} t', review.tonnes.toLocaleString(dateLocale(), { maximumFractionDigits: 1 }))
+        : Math.round(review.volume) + ' ' + review.unit
+      return <Row key={year} icon="calendar" iconTint="var(--green)" title={String(year)}
+        subtitle={t('{0} workouts', review.workouts) + ' · ' + lifted}
+        accessory="chevron" onClick={() => yearReviewSheet(year)} />
+    })}
+  </Section>
+}
 
 export default function Settings() {
   const nav = useNavigate()
@@ -256,6 +274,8 @@ export default function Settings() {
         <Switch checked={S.checkIn !== false} onChange={v => update(s => { s.checkIn = v })} />
       </Row>
     </Section>
+
+    <YearArchive S={S} />
 
     {/* ---------- during a workout ---------- */}
     <Section title={t('During a workout')} footer={wakeOK ? t('The screen stays on while a workout is running, so you don’t have to unlock your phone between sets.') : null}>

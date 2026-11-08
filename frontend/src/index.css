@@ -240,7 +240,13 @@ h4.sec{
 .year-dots span.on{background:#30d158}
 .year-kicker{color:#30d158;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
 .year-value{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.08;margin:12px 0}
+.month-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.month-stats span{display:block;font-size:12px}
+.month-stats b{display:block;font-size:22px;font-weight:700;margin-top:2px}
 .year-note{color:#9aa3b2;font-size:15px;line-height:1.4}
+.year-summary{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.year-summary span{display:block;color:#9aa3b2;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.year-summary b{font-size:18px;font-weight:700}
 .year-hit{position:absolute;top:0;bottom:72px;width:36%;border:0;background:transparent;cursor:pointer}
 .year-hit.left{left:0}
 .year-hit.right{right:0;width:64%}
