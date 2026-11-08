@@ -152,10 +152,9 @@ function base64Of(blob) {
 }
 
 /** Hand the painted card to the phone share sheet, or save the file on the web. */
-export async function shareWorkoutCard(canvas, title) {
+export async function shareWorkoutCard(canvas, title, filename = 'opengym-workout.png') {
   const blob = await blobOf(canvas)
   if (!blob) return 'saved'
-  const filename = 'opengym-workout.png'
   if (MOBILE) {
     const { Filesystem, Directory } = await import('@capacitor/filesystem')
     const { Share } = await import('@capacitor/share')

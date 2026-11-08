@@ -14,6 +14,7 @@ import { tappable } from '../lib/use-sheet-keyboard.js'
 import { readingCount } from '../lib/weigh-ins.js'
 import { MEASUREMENT_FIELDS, measurementSeries, measurementUnit, measurementUnitLabel } from '../lib/measurements.js'
 import { measurementGuideSheet } from '../components/MeasureGuide.jsx'
+import { YearHomeCard } from '../components/YearReview.jsx'
 
 function WaistCard({ S }) {
   const nav = useNavigate()
@@ -144,6 +145,8 @@ export default function Home() {
       </div>}
       <TodaySuggestion S={S} />
     </div>
+
+    <YearHomeCard />
 
     {/* Jump to the gym check-in cards (QR membership codes). Shown here as a quick tap on
         arrival at the gym; folds away per user via the "Gym check-in" switch in Settings. */}

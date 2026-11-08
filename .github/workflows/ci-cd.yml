@@ -148,7 +148,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        # sharp comes in with @capacitor/assets and downloads libvips in its install
+        # script. Tests never call it. A GitHub 504 on that download used to fail
+        # the job before vitest started. The only other install script is macOS fsevents.
+        run: npm ci --ignore-scripts
 
       - name: Run frontend tests
         working-directory: frontend
@@ -302,7 +305,7 @@ jobs:
         env:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build:mobile
       - name: Assemble and sign the APK
         env:

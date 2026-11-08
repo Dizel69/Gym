@@ -231,6 +231,20 @@ h4.sec{
 .slevel-row{display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;text-align:left;padding:8px 0;border:0;border-bottom:var(--hair) solid var(--sep);background:none;color:inherit;cursor:pointer}
 .slevel-ex{font-weight:600}
 .slevel-meta{font-size:13px;color:var(--label-2)}
+.year-story{position:relative;min-height:460px;border-radius:18px;background:#121418;color:#f4f6f8;padding:18px 18px 16px;overflow:hidden}
+.year-years{display:flex;gap:6px;margin-bottom:12px;position:relative;z-index:2}
+.year-years button{border:0;background:transparent;color:#9aa3b2;font:inherit;padding:4px 8px;border-radius:99px;cursor:pointer}
+.year-years button.on{background:rgba(48,209,88,.16);color:#30d158}
+.year-dots{display:flex;gap:4px;margin-bottom:36px}
+.year-dots span{flex:1;height:3px;border-radius:99px;background:rgba(255,255,255,.18)}
+.year-dots span.on{background:#30d158}
+.year-kicker{color:#30d158;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+.year-value{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.08;margin:12px 0}
+.year-note{color:#9aa3b2;font-size:15px;line-height:1.4}
+.year-hit{position:absolute;top:0;bottom:72px;width:36%;border:0;background:transparent;cursor:pointer}
+.year-hit.left{left:0}
+.year-hit.right{right:0;width:64%}
+.year-actions{display:flex;gap:8px;margin-top:28px;position:relative;z-index:2}
 .divider{height:var(--hair);background:var(--sep);margin:14px 0;border:0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;align-items:center;gap:12px}
