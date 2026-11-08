@@ -27,6 +27,7 @@ import { stampRoutine } from './lib/sync-merge.js'
 import { workoutCardModel, paintWorkoutCard, shareWorkoutCard } from './lib/workout-card.js'
 import { scheduleFor } from './lib/week-cycle.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
+import { StrengthLevelBlock } from './components/StrengthLevel.jsx'
 import { exerciseHistory, planWeightPoints } from './lib/exercise-history.js'
 import { sessionPrescription, writeLinearPlanWeights, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement } from './lib/progression.js'
 import { normalizeRepRange } from './lib/rep-range.js'
@@ -711,6 +712,7 @@ function ExerciseDetail({ ex, close }) {
         calculator would answer "your 1RM is 23 kg" about a number that gets smaller as you get
         stronger (issue #232). Cardio has none for the same kind of reason. */}
     {!isCardio(ex) && !isAssisted(ex) && <OneRM ex={ex} />}
+    <StrengthLevelBlock exId={ex.id} />
     {instrFor(ex).length > 0 &&<><h4 className="sec">{t('How to')}{(instrIsEnglishFallback(ex) || !INSTR_LANGS.includes(getLang())) && <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}> · {t('instructions in English')}</span>}</h4><ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol></>}
   </>
 }

@@ -224,6 +224,13 @@ h4.sec{
   font-size:13px;font-weight:400;letter-spacing:-.004em;color:var(--label-2);
   text-transform:none;margin:0 0 12px;
 }
+.slevel-name{font-size:22px;font-weight:650;letter-spacing:-.02em}
+.slevel-bar{display:flex;gap:4px;margin:8px 0 6px}
+.slevel-bar span{flex:1;height:6px;border-radius:99px;background:var(--fill-3)}
+.slevel-bar span.on{background:var(--acc)}
+.slevel-row{display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;text-align:left;padding:8px 0;border:0;border-bottom:var(--hair) solid var(--sep);background:none;color:inherit;cursor:pointer}
+.slevel-ex{font-weight:600}
+.slevel-meta{font-size:13px;color:var(--label-2)}
 .divider{height:var(--hair);background:var(--sep);margin:14px 0;border:0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row{display:flex;align-items:center;gap:12px}
