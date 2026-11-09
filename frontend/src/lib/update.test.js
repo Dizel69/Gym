@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { checkForUpdate, sha256, resetUpdateCheck } from './update.js'
+import { checkForUpdate, sha256, resetUpdateCheck, rejectDownload } from './update.js'
 
 // __APP_VERSION__ and __BUILD_NUMBER__ are defined at build time by vite.config.js.
 // In the test environment vitest applies the same define. A test build has no
@@ -22,6 +22,19 @@ describe('sha256', () => {
     const hash = await sha256(new TextEncoder().encode('test').buffer)
     expect(hash).toHaveLength(64)
     expect(hash).toMatch(/^[0-9a-f]{64}$/)
+  })
+})
+
+describe('rejectDownload', () => {
+  const hash = 'a'.repeat(64)
+  it('refuses a file too small to be the release APK', () => {
+    expect(rejectDownload(500, hash, hash)).toBe('small')
+  })
+  it('refuses a checksum that does not match', () => {
+    expect(rejectDownload(200_000_000, 'b'.repeat(64), hash)).toBe('mismatch')
+  })
+  it('accepts the release when the checksum matches, ignoring case', () => {
+    expect(rejectDownload(200_000_000, hash.toUpperCase(), hash)).toBe('ok')
   })
 })
 

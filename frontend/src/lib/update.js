@@ -67,11 +67,20 @@ export async function fetchReleaseText(url) {
   return res.text()
 }
 
-function base64ToBytes(b64) {
-  const bin = atob(b64)
-  const out = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
-  return out
+// A release APK is about 200 MB with the exercise pictures inside. The old path asked
+// CapacitorHttp for the whole file as one base64 string, then copied it back to disk.
+// The progress sheet stayed on "Starting download…" until that round trip finished,
+// which on a phone was many minutes. The native download writes the file as it arrives
+// and hashes those same bytes, so the bar moves and the installer opens when it ends.
+const UPDATE_FILE = 'opengym-update.apk'
+const MIN_APK_BYTES = 100_000
+
+/** 'ok', or why a finished download must not be installed. */
+export function rejectDownload(bytes, actualHash, expectedHash) {
+  if (!(Number(bytes) >= MIN_APK_BYTES)) return 'small'
+  const want = String(expectedHash || '').toLowerCase().trim()
+  if (want && String(actualHash || '').toLowerCase().trim() !== want) return 'mismatch'
+  return 'ok'
 }
 
 /**
@@ -89,32 +98,23 @@ export async function downloadAndInstall(url, expectedHash = null, onProgress = 
     return
   }
 
-  const { CapacitorHttp, registerPlugin } = await import('@capacitor/core')
+  const { registerPlugin } = await import('@capacitor/core')
   const { Filesystem, Directory } = await import('@capacitor/filesystem')
-  const res = await CapacitorHttp.get({ url, responseType: 'blob' })
-  if (res.status < 200 || res.status >= 300) throw new Error(`Download failed: ${res.status}`)
-
-  const base64 = typeof res.data === 'string' ? res.data : ''
-  const bytes = base64ToBytes(base64)
-  if (bytes.length < 100_000) {
-    throw new Error('Downloaded file is too small to be a valid APK (' + bytes.length + ' bytes)')
-  }
-  if (onProgress) onProgress(bytes.length, bytes.length)
-
-  if (expectedHash) {
-    const actualHash = await sha256(bytes.buffer)
-    if (actualHash !== expectedHash.toLowerCase().trim()) {
-      throw new Error('SHA-256 mismatch — download may be corrupted or tampered with')
-    }
-  }
-
-  const fileName = 'opengym-update.apk'
-  await Filesystem.writeFile({
-    path: fileName,
-    directory: Directory.Cache,
-    data: base64,
-  })
-
   const Install = registerPlugin('Install')
-  await Install.installApk({ fileName })
+  const handle = onProgress
+    ? await Install.addListener('progress', e => onProgress(Number(e.bytes) || 0, Number(e.total) || 0))
+    : null
+  let saved = null
+  try {
+    saved = await Install.downloadApk({ url, fileName: UPDATE_FILE })
+    const verdict = rejectDownload(saved && saved.bytes, saved && saved.sha256, expectedHash)
+    if (verdict === 'small') throw new Error('Downloaded file is too small to be a valid APK (' + (saved && saved.bytes) + ' bytes)')
+    if (verdict === 'mismatch') throw new Error('SHA-256 mismatch — download may be corrupted or tampered with')
+    await Install.installApk({ fileName: UPDATE_FILE })
+  } catch (e) {
+    try { await Filesystem.deleteFile({ path: UPDATE_FILE, directory: Directory.Cache }) } catch { /* nothing saved, or already gone */ }
+    throw e
+  } finally {
+    if (handle) await handle.remove()
+  }
 }
