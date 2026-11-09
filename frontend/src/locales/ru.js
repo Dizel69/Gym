@@ -1516,4 +1516,10 @@ export default {
   '{0} shorter than last time': 'на {0} короче, чем в прошлый раз',
   'Faster than last time': 'Быстрее, чем в прошлый раз',
   'Slower than last time': 'Медленнее, чем в прошлый раз',
+  'Suggested substitutes': 'Похожие',
+  'Same movement and muscle': 'То же движение и та же мышца',
+  'Same muscle and exercise type. The movement may differ.': 'Та же мышца и тот же тип. Движение может отличаться.',
+  'Same muscle: {0}': 'Та же мышца: {0}',
+  'Replacing {0}': 'Замена: {0}',
+  'Swap to {0}': 'Заменить на {0}',
 }

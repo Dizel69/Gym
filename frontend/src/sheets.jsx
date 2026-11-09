@@ -41,6 +41,8 @@ import { nextUnfinishedUnit } from './lib/supersetFlow.js'
 import { swapActiveExercise } from './lib/active-exercise-swap.js'
 import { useSheetKeyboard, useRevealActiveChip, tappable } from './lib/use-sheet-keyboard.js'
 import { isFav, toggleFav, sortFavouritesFirst } from './lib/favourites.js'
+import { sameMuscleFirst, swapMuscleOf } from './lib/similar-exercises.js'
+import { swapSuggestions } from './lib/exercise-substitutes.js'
 import { buildSessionEntries } from './lib/session-start.js'
 import { buildCombinedEntries, deriveSessionName } from './lib/session-merge.js'
 import { workoutsOn, backfillStart, backfillEnd, completeBackfill } from './lib/backfill.js'
@@ -930,11 +932,27 @@ function usageMap(st) {
   st.workouts.forEach(w => w.entries.forEach(e => { u[e.id] = (u[e.id] || 0) + 1 }))
   return u
 }
-function ExercisePicker({ onPick, close }) {
+// A swap opens on the target muscle of the exercise being replaced. '≈' is that chip.
+const SAME = '≈'
+
+function exerciseById(st, id) {
+  return EXIDX[id] || allExercises(st).find(e => e.id === id) || null
+}
+
+function ExercisePicker({ onPick, close, like, title }) {
   const st = useStore(s => s.S)
   const usage = usageMap(st)
+  const likeEx = like ? exerciseById(st, like) : null
+  const likeTg = swapMuscleOf(likeEx) && sameMuscleFirst(allExercises(st), likeEx).length ? swapMuscleOf(likeEx) : ''
+  const muscleLabel = likeTg ? t(MUSCLE_NAME[likeTg] || likeTg) : ''
   const [q, setQ] = useState('')
-  const [bp, setBp] = useState('')          // '' = all, '★' = chosen, '☆' = favourites, else a body part
+  const [bp, setBp] = useState(() => {
+    if (!likeTg) return ''
+    const st0 = useStore.getState().S
+    const mates = sameMuscleFirst(allExercises(st0), exerciseById(st0, like))
+    const prof = activeProfile(st0)
+    return mates.some(e => !prof || exAvailable(st0, e)) ? SAME : ''
+  })          // '' = all, SAME = this muscle, '★' = chosen, '☆' = favourites, else a body part
   const [cat, setCat] = useState('')        // '' = any training type
   const [eq, setEq] = useState('')          // '' = any equipment
   const [showAll, setShowAll] = useState(false)
@@ -943,38 +961,56 @@ function ExercisePicker({ onPick, close }) {
   const searchRef = useRef(null)
   const catStrip = useRef(null), bpStrip = useRef(null), eqStrip = useRef(null)
   const onSearchFocus = useSheetKeyboard(searchRef)
-  const all = allExercises(st)
+  const all = allExercises(st).filter(e => !like || e.id !== like)
   const profile = activeProfile(st)
   const special = bp === '★' || bp === '☆'
   const inScope = e => bp === '★' ? usage[e.id] : bp === '☆' ? isFav(st, e.id) : true
-  let base = searchExercises(all.filter(inScope), q)
+  const scope = bp === SAME && likeEx ? sameMuscleFirst(all, likeEx) : all.filter(inScope)
+  let base = searchExercises(scope, q)
   if (bp === '★') base = [...base].sort((a, b) => (usage[b.id] - usage[a.id]) || exerciseNameFor(a).localeCompare(exerciseNameFor(b)))
   const available = (profile && !showAll) ? base.filter(e => exAvailable(st, e)) : base
   const catOpts = categoriesOf(available)
   const catOn = catOpts.includes(cat) ? cat : ''
   const typed = catOn ? available.filter(e => e.cat === catOn) : available
-  const inPart = !special && bp ? typed.filter(e => e.bp === bp) : typed
+  const inPart = bp === SAME ? typed : (!special && bp ? typed.filter(e => e.bp === bp) : typed)
   const eqOpts = equipmentOf(inPart)
   // Drop the equipment filter if the search narrowed it away, so you never hit a dead end.
   const eqOn = eqOpts.includes(eq) ? eq : ''
   // Favourites float to the top of whatever the filters left (issue #6), the rest keeps its order.
-  const f = sortFavouritesFirst(eqOn ? inPart.filter(e => e.eq === eqOn) : inPart, st)
+  // On the same-muscle chip, same equipment still leads, favourites staying first inside each half.
+  const ranked = sortFavouritesFirst(eqOn ? inPart.filter(e => e.eq === eqOn) : inPart, st)
+  const f = bp === SAME && likeEx ? sameMuscleFirst(ranked, likeEx) : ranked
+  const suggest = (likeEx && !q.trim() && !special) ? swapSuggestions(f, likeEx) : { kind: '', items: [] }
+  const suggested = suggest.items
+  const suggestedIds = new Set(suggested.map(e => e.id))
+  const rest = f.filter(e => !suggestedIds.has(e.id))
+  const reason = suggest.kind === 'movement'
+    ? t('Same movement and muscle')
+    : t('Same muscle and exercise type. The movement may differ.')
   const chosenCount = Object.keys(usage).length
   const favCount = (st.favEx || []).length
   useRevealActiveChip(catStrip, catOn)
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
+  const heading = title || t('Add exercise')
+  const rowOf = e => <div key={e.id} className="item" {...tappable(() => onPick(e))}>
+    <Thumb ex={e} /><div className="grow"><div className="tt capitalize">{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
+    {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
+    <button className="iconbtn chev" aria-label={like ? t('Swap to {0}', exerciseNameFor(e)) : t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
+      onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
+  </div>
   if (byMuscle) return <>
-    <div className="row between" style={{ marginBottom: 10 }}><h3>{t('Add exercise')}</h3>
+    <div className="row between" style={{ marginBottom: 10 }}><h3>{heading}</h3>
       <Button size="sm" variant="ghost" onClick={() => setByMuscle(false)}>{t('All')}</Button>
     </div>
     <MuscleExplorer onPick={onPick} />
   </>
 
   return <>
-    <div className="row between" style={{ marginBottom: 10 }}><h3>{t('Add exercise')}</h3>
+    <div className="row between" style={{ marginBottom: 10 }}><h3>{heading}</h3>
       <Button size="sm" variant="tinted" icon="target" onClick={() => setByMuscle(true)}>{t('By muscle')}</Button>
     </div>
+    {likeEx && <div className="small muted" style={{ margin: '-4px 0 8px' }}>{t('Replacing {0}', exerciseNameFor(likeEx))}</div>}
     {/* .picker-search is what index.css keys the keyboard-aware sheet layout on: the sheet
         lifts above the keys and the search stays put while the list scrolls under it. */}
     <div className="picker-search"><div className="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
@@ -997,6 +1033,7 @@ function ExercisePicker({ onPick, close }) {
     <div className="chips" ref={bpStrip} style={{ margin: eqOpts.length > 1 ? '10px 0 6px' : '10px 0' }}>
       {favCount > 0 && <button className={'chip' + (bp === '☆' ? ' on' : '')} onClick={() => { setBp('☆'); setEq(''); setShown(50) }}><Icon name="starFill" className="fav-star" />{t('Favourites')} ({favCount})</button>}
       {chosenCount > 0 && <button className={'chip' + (bp === '★' ? ' on' : '')} onClick={() => { setBp('★'); setEq(''); setShown(50) }}><Icon name="starFill" style={{ fontSize: 12, display: 'inline-block', marginRight: 4, verticalAlign: '-1px' }} />{t('Chosen')} ({chosenCount})</button>}
+      {likeTg && <button className={'chip nocap' + (bp === SAME ? ' on' : '')} onClick={() => { setBp(SAME); setShown(50) }}>{t('Same muscle: {0}', muscleLabel)}</button>}
       <button className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setShown(50) }}>{t('All')}</button>
       {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setShown(50) }}>{t(b)}</button>)}
     </div>
@@ -1004,30 +1041,29 @@ function ExercisePicker({ onPick, close }) {
       <button className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(50) }}>{t('Any equipment')}</button>
       {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(50) }}>{t(x)}</button>)}
     </div>}
+    {suggested.length > 0 && <section aria-label={t('Suggested substitutes')}>
+      <h4 className="sec">{t('Suggested substitutes')}</h4>
+      <p className="small muted" style={{ margin: '0 0 8px' }}>{reason}</p>
+      <div className="list">{suggested.map(rowOf)}</div>
+    </section>}
+    {like && bp === SAME && !q.trim() && <h4 className="sec">{t('Same muscle: {0}', muscleLabel)}</h4>}
     <div className="list">
       {!special && <div className="item" {...tappable(() => customExSheet(null, ex => onPick(ex), q.trim()))}>
         <div className="thumb thumb-x"><Icon name="sparkles" /></div>
         <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part, no animation')}</div></div><Icon name="plus" className="chev" />
       </div>}
-      {f.slice(0, shown).map(e => <div key={e.id} className="item" {...tappable(() => onPick(e))}>
-        <Thumb ex={e} /><div className="grow"><div className="tt capitalize">{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
-        {/* Accent tag = already in a routine/log ("Chosen"); the yellow star by the name = favourite. */}
-        {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
-        {/* A "+" glyph reads as "add this now" — it used to just open the same detail sheet as
-            tapping the row, so it added nothing until you'd scrolled past the sets/reps config
-            and found the real button. Now it does what it looks like: adds with the default
-            config right away. Tapping the row itself still opens the detail/config sheet, for
-            when you want to set sets/reps before adding. */}
-        <button className="iconbtn chev" aria-label={t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
-          onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
-      </div>)}
+      {rest.slice(0, shown).map(rowOf)}
       {f.length === 0 && bp === '★' && <div className="empty">{t('Nothing chosen yet — add exercises and they’ll show up here.')}</div>}
       {f.length === 0 && bp === '☆' && <div className="empty">{t('No favourites here — tap the star on an exercise to add it.')}</div>}
     </div>
-    {f.length > shown && <><div style={{ height: 8 }} /><Button onClick={() => setShown(s => s + 50)}>{t('Show more')}</Button></>}
+    {rest.length > shown && <><div style={{ height: 8 }} /><Button onClick={() => setShown(s => s + 50)}>{t('Show more')}</Button></>}
   </>
 }
-export const exercisePicker = onPick => ui().openSheet(close => <ExercisePicker onPick={onPick} close={close} />)
+// `title` names the sheet when the pick is a swap rather than an add.
+// `like` is the exercise being replaced: the list opens on its target muscle, and up to three
+// similar exercises lead it — the same movement when the catalogue has one, otherwise the same
+// muscle and the same exercise type.
+export const exercisePicker = (onPick, { title, like } = {}) => ui().openSheet(close => <ExercisePicker onPick={onPick} close={close} like={like} title={title} />)
 
 /** Start a safe swap for one exact active-workout occurrence. */
 export function swapActiveWorkoutExercise(index) {
@@ -1036,7 +1072,7 @@ export function swapActiveWorkoutExercise(index) {
 
   // The "+" on a picker row commits with the default config, exactly as it does in the add
   // flows; tapping the row still opens the config sheet first.
-  const picker = exercisePicker((ex, quick) => quick ? swapTo(ex, defaultConfig(ex.id)) : exConfigSheet(ex, null, cfg => swapTo(ex, cfg), null, null))
+  const picker = exercisePicker((ex, quick) => quick ? swapTo(ex, defaultConfig(ex.id)) : exConfigSheet(ex, null, cfg => swapTo(ex, cfg), null, null), { title: t('Swap exercise'), like: active.entries[index].id })
   function swapTo(ex, cfg) {
     // The picker is a chooser here, not a stack you keep adding from: one swap, then back to
     // the workout. (The add flow deliberately leaves it open.)
