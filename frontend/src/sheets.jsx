@@ -36,6 +36,7 @@ import { buildCompletedWorkout } from './lib/finish-workout.js'
 import { addWeighIn, allReadings, dailyModeOf, readingTime, removeWeighIn, settleAll, timeOf } from './lib/weigh-ins.js'
 import { entryTimes } from './lib/exercise-time.js'
 import { isWarmupRow, hasCompletedWork } from './lib/workout-model.js'
+import { setTrendOn, setTrendsFor, lastTimeBefore, trendGlyph, trendLabel } from './lib/set-trend.js'
 import { nextUnfinishedUnit } from './lib/supersetFlow.js'
 import { swapActiveExercise } from './lib/active-exercise-swap.js'
 import { useSheetKeyboard, useRevealActiveChip, tappable } from './lib/use-sheet-keyboard.js'
@@ -1811,12 +1812,25 @@ function WorkoutDetail({ w, close }) {
     const sec = Math.round((Number(ms) || 0) / 1000)
     return sec < 60 ? t('{0} s', sec) : fmtDur(ms)
   }
+  // Each set as logged, with its arrow against the same set last time (upstream #907):
+  // last time as the log stood before this workout, so an old one is never held against a later.
+  const trendsOn = setTrendOn(st)
+  const detailSets = e => {
+    const last = trendsOn ? lastTimeBefore(st, w, e) : null
+    const trends = last ? setTrendsFor(e, last) : []
+    const shown = (e.sets || []).map((s, j) => [s, j]).filter(([s]) => hasCompletedWork(s))
+    if (!shown.length) return t('no sets')
+    return shown.map(([s, j], k) => <span key={j}>
+      {k > 0 && '  ·  '}
+      <span className="wd-set">{setLabel(e.id, s, e.target)}{trends[j] && <span className={'settrend inline ' + (trends[j].dir > 0 ? 'up' : trends[j].dir < 0 ? 'down' : 'same')} role="img" aria-label={trendLabel(trends[j], st.unit)} title={trendLabel(trends[j], st.unit)}>{trendGlyph(trends[j])}</span>}</span>
+    </span>)
+  }
   const entryRow = (e, i) => {
     const ex = EXIDX[e.id]
     return <div key={i} className="row" style={{ marginBottom: 12, alignItems: 'flex-start' }}>
       {ex && <Thumb ex={ex} />}
       <div className="grow"><div className="tt capitalize" style={{ fontWeight: 600 }}>{ex ? exerciseNameFor(ex) : (e.n || e.id)} {w.prs && w.prs.includes(e.id) && <span className="pr"><Icon name="trophy" />PR</span>}</div>
-        <div className="ss">{e.sets.filter(hasCompletedWork).map(s => setLabel(e.id, s, e.target)).join('  ·  ') || t('no sets')}</div>
+        <div className="ss">{detailSets(e)}</div>
         {times[i] >= 1000 && <div className="small dim" style={{ marginTop: 2 }}>{timeLabel(times[i])}</div>}
         {e.note && <div className="small dim" style={{ marginTop: 3 }}>
           {e.notePin && <Icon name="flag" style={{ fontSize: 12, marginRight: 4, verticalAlign: '-1px', color: 'var(--yellow)' }} />}{e.note}

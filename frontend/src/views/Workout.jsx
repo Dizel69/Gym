@@ -23,6 +23,7 @@ import { glyphOf } from '../lib/glyphs.js'
 import { isWarmupRow, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps, isSideSet, makeSideSet, setSideField, toggleSide, addSideDrop, removeSideDropAt, setSideDropAt, addSideCluster, removeSideClusterAt, setSideClusterAt } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-workout-order.js'
 import { MUSCLE_NAME } from '../lib/muscles.js'
+import { setTrendOn, setTrendsFor, historyBefore, trendGlyph, trendLabel } from '../lib/set-trend.js'
 
 const SWIPE_MIN_DISTANCE = 48
 const SWIPE_AXIS_RATIO = 1.25
@@ -116,9 +117,17 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
   const cardio = mode === 'cardio'
   const timed = mode === 'time'
   // "Last time" follows the rep line the progression already uses. An 8-rep day
-  // must not recap the later 12-rep session of the same exercise.
+  // must not recap the later 12-rep session of the same exercise. A session logged
+  // into the past is held against what came before that day, never a later workout.
   const lineReps = Number(cfg.repsTop) > 0 ? Number(cfg.repsTop) : cfg.reps
-  const last = lastEntryFor(S, entry.id, { ...cfg, reps: lineReps })
+  const last = lastEntryFor(historyBefore(S, S.active), entry.id, { ...cfg, reps: lineReps })
+  // Each finished set against the same set last time (upstream #907, lib/set-trend.js).
+  const trends = setTrendOn(S) ? setTrendsFor(entry, last) : null
+  const trendMark = i => {
+    const tr = trends?.[i]
+    return tr ? <span className={'settrend ' + (tr.dir > 0 ? 'up' : tr.dir < 0 ? 'down' : 'same')} aria-hidden="true">{trendGlyph(tr)}</span> : null
+  }
+  const trendSay = (i, label) => (trends?.[i] ? label + ', ' + trendLabel(trends[i], S.unit) : label)
   const standingNote = exNoteFor(S, entry.id)
   // Only worth surfacing while there is still work left: once the exercise is finished, a note
   // telling you what to do in it is behind you, and the block is already long.
@@ -423,7 +432,7 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
             // Unilateral work set: the number sits beside a two-row L/R stack, each side logged
             // and ticked on its own (issue #60).
             <div ref={el => onSetRowRef?.(i, el)} className={'setrow-side' + (s.done ? ' done' : '')}>
-              <button type="button" className="n" aria-label={t('Set {0}', phaseNum)} title={t('More')} onClick={() => openSetMenu(s, i)}>{phaseNum}</button>
+              <button type="button" className="n" aria-label={trendSay(i, t('Set {0}', phaseNum))} title={t('More')} onClick={() => openSetMenu(s, i)}>{phaseNum}{trendMark(i)}</button>
               <div className="side-rows">
                 {sideRow(s, i, 'L', col1, col2, col3)}
                 {sideExtras(s, i, 'L')}
@@ -433,7 +442,7 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
             </div>
           ) : (
           <div ref={el => onSetRowRef?.(i, el)} className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '') + (timed ? ' timed' : '')}>
-            <button type="button" className="n" aria-label={t('Set {0}', phaseNum)} title={t('More')} onClick={() => openSetMenu(s, i)}>{phaseNum}</button>
+            <button type="button" className="n" aria-label={trendSay(i, t('Set {0}', phaseNum))} title={t('More')} onClick={() => openSetMenu(s, i)}>{phaseNum}{trendMark(i)}</button>
             {cell(s, i, col1, 'w')}
             {col2 && cell(s, i, col2, 'r')}
             {col3 && effortCell(s, i, col3)}
