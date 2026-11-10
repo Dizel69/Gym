@@ -2,11 +2,13 @@
 // Stats card. Hidden when there is no weigh-in or no graded lift with an estimate.
 import { useState } from 'react'
 import { useStore } from '../store/useStore.js'
+import { useUI } from '../store/useUI.js'
 import { t, dateLocale, exerciseNameFor } from '../lib/i18n.js'
 import { fmtNum } from '../lib/format.js'
 import { EXIDX } from '../lib/exercises.js'
-import { strengthLevel, strengthLevels, liftOf, LEVELS, LEVEL_NAME } from '../lib/strength-level.js'
+import { strengthLevel, strengthLevels, levelWeights, liftOf, LEVELS, LEVEL_NAME } from '../lib/strength-level.js'
 import { Button } from './ui.jsx'
+import Icon from './Icon.jsx'
 
 const fmtRatio = r => new Intl.NumberFormat(dateLocale(), { maximumFractionDigits: 2 }).format(r)
 const weightOf = (lv, w, unit) => {
@@ -40,26 +42,52 @@ export function StrengthLevelBlock({ exId }) {
       <div className="small muted">{t('{0} × body weight', fmtRatio(lv.ratio))}</div>
     </div>
     <LevelBar level={lv.level} />
+    <div className="small">{t('Estimated max {0}', weightOf(lv, lv.e1rm, S.unit))}</div>
     <NextLine lv={lv} unit={S.unit} />
   </div>
 }
 
 const LEVEL_ROWS = 5
 
-/** Stats: every graded lift, strongest first. */
+function liftName(lv) {
+  const ex = EXIDX[lv.id]
+  return ex ? exerciseNameFor(ex) : lv.id
+}
+
+function StrengthScale({ S }) {
+  const rows = strengthLevels(S)
+  const bw = rows[0]?.bw
+  return <>
+    <h3>{t('Strength levels')}</h3>
+    {bw > 0 && <div className="small dim" style={{ marginBottom: 12 }}>{t('At {0}, the one-rep max each level starts at.', fmtNum(bw) + ' ' + (S.unit || 'kg'))}</div>}
+    {rows.map(lv => <div key={lv.lift} className="slevel-scale">
+      <div className="slevel-ex">{liftName(lv)}</div>
+      <div className="small" style={{ marginTop: 2 }}>{t('Estimated max {0}', weightOf(lv, lv.e1rm, S.unit))}</div>
+      {levelWeights(lv).map(step => <div key={step.name} className={'row between slevel-step' + (step.name === lv.name ? ' on' : '')}>
+        <span>{t(LEVEL_NAME[step.name])}</span>
+        <b>{weightOf(lv, step.weight, S.unit)}</b>
+      </div>)}
+    </div>)}
+  </>
+}
+
+/** Stats: every graded lift, strongest first. The title row opens the full table. */
 export function StrengthLevelsCard({ S, onOpen }) {
   const [all, setAll] = useState(false)
   const rows = strengthLevels(S)
   if (!rows.length) return null
   const shown = all ? rows : rows.slice(0, LEVEL_ROWS)
+  const openTable = () => useUI.getState().openSheet(() => <StrengthScale S={S} />)
   return <div className="card" data-strength-levels>
-    <h2>{t('Strength levels')}</h2>
+    <button type="button" className="slevel-open" onClick={openTable}>
+      <h2>{t('Strength levels')}</h2>
+      <Icon name="chevronRight" className="chev" />
+    </button>
     {shown.map(lv => {
-      const ex = EXIDX[lv.id]
-      const name = ex ? exerciseNameFor(ex) : lv.id
       return <button key={lv.lift} type="button" className="slevel-row" onClick={() => onOpen?.(lv.id)}>
-        <span className="slevel-ex">{name}</span>
-        <span className="slevel-meta"><b>{t(LEVEL_NAME[lv.name])}</b> · {fmtRatio(lv.ratio)}×</span>
+        <span className="slevel-ex">{liftName(lv)}</span>
+        <span className="slevel-meta"><b>{t(LEVEL_NAME[lv.name])}</b> · {t('{0} × body weight', fmtRatio(lv.ratio))}</span>
+        <div className="small">{t('Estimated max {0}', weightOf(lv, lv.e1rm, S.unit))}</div>
         <NextLine lv={lv} unit={S.unit} />
       </button>
     })}

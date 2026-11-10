@@ -768,6 +768,7 @@ export default {
   // --- v1.2.2: timed sets, progression, estimated 1RM (#16 #17 #18) ---
   'Top set': 'Лучший подход',
   'Est. 1RM': 'Расч. 1ПМ',
+  'Estimated max {0}': 'Расчётный максимум {0}',
   'No sessions logged yet': 'Записанных сессий пока нет',
   '{0} session': '{0} сессия',
   '{0} sessions': '{0} сессий',
@@ -777,6 +778,7 @@ export default {
   'Last {0} sessions': 'Последние {0} сессий',
   'Estimated 1RM': 'Расчётный 1ПМ',
   'Strength levels': 'Уровни силы',
+  'At {0}, the one-rep max each level starts at.': 'При весе {0} — разовый максимум, с которого начинается каждая ступень.',
   'Strength level': 'Уровень силы',
   'Below the table': 'Пока ниже новичка',
   'Beginner lifter': 'Новичок',

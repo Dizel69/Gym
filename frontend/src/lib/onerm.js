@@ -1,4 +1,4 @@
-import { isWarmupRow } from './workout-model.js'
+import { isSideSet, isWarmupRow } from './workout-model.js'
 import { isAssisted } from './exercises.js'
 // Estimated one-rep max (issue #18).
 //
@@ -40,6 +40,15 @@ export function estimate1RM(w, r, formula = DEFAULT_FORMULA) {
   return Math.round(est * 10) / 10
 }
 
+// A per-side row stores the total in `r` (12 left + 12 right = 24) and each arm on its own.
+// The estimate reads one arm: 24 is not twenty-four reps of one curl.
+function estimateCandidates(set) {
+  if (!isSideSet(set)) return [{ w: set.w, r: set.r, side: false }]
+  return ['L', 'R']
+    .filter(side => set.sides[side]?.done)
+    .map(side => ({ w: set.sides[side].w, r: set.sides[side].r, side: true }))
+}
+
 // Best estimate out of one workout entry's completed sets.
 // `topW` is ignored on purpose: it records the working weight a user confirmed after the
 // exercise, with no rep count attached, so it cannot produce an estimate.
@@ -51,8 +60,12 @@ export function bestSetOf(entry, formula = DEFAULT_FORMULA) {
   let best = null
   ;(entry?.sets || []).forEach(s => {
     if (!s.done || isWarmupRow(s)) return
-    const est = estimate1RM(s.w, s.r, formula)
-    if (est !== null && (!best || est > best.est)) best = { est, w: Number(s.w), r: Math.round(Number(s.r)) }
+    for (const c of estimateCandidates(s)) {
+      const est = estimate1RM(c.w, c.r, formula)
+      if (est === null || (best && est <= best.est)) continue
+      best = { est, w: Number(c.w), r: Math.round(Number(c.r)) }
+      if (c.side) best.side = true
+    }
   })
   return best
 }

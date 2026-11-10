@@ -88,6 +88,21 @@ describe('bestSetOf', () => {
     expect(bestSetOf({ id: 'p', sets: [{ sec: 60, w: 20, done: true }] })).toBeNull()
   })
 
+  it('reads one arm of a per-side set, not the 12 + 12 total', () => {
+    const straight = { id: 'x', sets: [{ w: 12.5, r: 24, done: true }] }
+    expect(bestSetOf(straight)).toBeNull()
+    const sided = { id: 'x', sets: [{
+      w: 12.5, r: 24, done: true,
+      sides: { L: { w: 12.5, r: 12, done: true }, R: { w: 12.5, r: 12, done: true } },
+    }] }
+    expect(bestSetOf(sided)).toEqual({ est: 17.5, w: 12.5, r: 12, side: true })
+    const uneven = { id: 'x', sets: [{
+      w: 15, r: 20, done: true,
+      sides: { L: { w: 12.5, r: 12, done: true }, R: { w: 15, r: 8, done: true } },
+    }] }
+    expect(bestSetOf(uneven)).toEqual({ est: 19, w: 15, r: 8, side: true })
+  })
+
   it('survives a missing or empty entry', () => {
     expect(bestSetOf(null)).toBeNull()
     expect(bestSetOf({ sets: [] })).toBeNull()

@@ -545,6 +545,26 @@ describe('double progression', () => {
     expect(p.target1RM).toBe(deloadTarget1RM(5, 8))
   })
 
+  it('seeds a new per-side line from one arm, not from the summed reps', () => {
+    const arm = { w: 12.5, r: 12, done: true }
+    const S = {
+      unit: 'kg',
+      workouts: [{
+        d: '2026-11-09', start: 1,
+        entries: [{
+          id: '0285',
+          target: { sets: 3, reps: 24, weight: 12.5, side: true },
+          sets: [{ w: 12.5, r: 24, done: true, sides: { L: arm, R: { ...arm } } }],
+        }],
+      }],
+    }
+    const cfg = { id: '0285', sets: 3, reps: 16, repsMin: 12, weight: 12.5, side: true, prog: 'double', inc: 0.5 }
+    const p = nextPrescription(S, cfg)
+    expect(p.kind).toBe('seed')
+    // 12.5×12 per arm → 17.5, inverted at 8 per arm → 13.8, then the 0.5 step.
+    expect(p.weight).toBe(14)
+  })
+
   it('uses half the reps for per-side Epley and returns an even total', () => {
     const perSide = { ...cfg, reps: 8, side: true }
     const target = { sets: 3, reps: 8, weight: 60, side: true }

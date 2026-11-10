@@ -75,33 +75,31 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
     }
     const d0 = new Date(t0), d1 = new Date(t1)
     const ticks = []
-    // The plan's weight chart labels the workouts themselves. Month names hid
-    // a run of sessions behind two ticks, so a stretch of five dates looked
-    // like two days.
-    if (dayLabels && !single) {
-      const maxLabels = 5
+    // A label sits on a real reading. Sampling the span at even thirds named the
+    // middle stamp with whichever date that instant fell on, so "9 Nov" could
+    // land in the centre while the 9 Nov point sat further right.
+    const pointTicks = maxLabels => {
       const want = points.length <= maxLabels ? points.length : maxLabels
       const indexes = []
       for (let i = 0; i < want; i++) indexes.push(Math.round(i * (points.length - 1) / Math.max(1, want - 1)))
-      ;[...new Set(indexes)].forEach((idx, n, all) => {
+      return [...new Set(indexes)].map((idx, n, all) => {
         const p = points[idx]
         const dd = new Date(p.d ? p.d + 'T12:00:00' : p.t)
-        ticks.push({
+        return {
           t: p.t,
           txt: dd.getDate() + ' ' + t(MONTHS[dd.getMonth()]),
           anchor: n === 0 ? 'start' : n === all.length - 1 ? 'end' : 'middle',
-        })
+        }
       })
     }
+    // The plan's weight chart labels the workouts themselves. Month names hid
+    // a run of sessions behind two ticks, so a stretch of five dates looked
+    // like two days.
+    if (dayLabels && !single) ticks.push(...pointTicks(5))
     if (!ticks.length) {
       let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1)
       while (m <= d1) { ticks.push({ t: +m, txt: t(MONTHS[m.getMonth()]) }); m = new Date(m.getFullYear(), m.getMonth() + 1, 1) }
-      if (ticks.length === 0 && !single) {
-        for (let i = 0; i <= 2; i++) {
-          const tv = t0 + (t1 - t0) * i / 2, dd = new Date(tv)
-          ticks.push({ t: tv, txt: dd.getDate() + ' ' + t(MONTHS[dd.getMonth()]), anchor: i === 0 ? 'start' : i === 2 ? 'end' : 'middle' })
-        }
-      }
+      if (ticks.length === 0 && !single) ticks.push(...pointTicks(5))
     }
     const every = dayLabels ? 1 : Math.max(1, Math.ceil(ticks.length / 7))
     ticks.forEach((tk, i) => {

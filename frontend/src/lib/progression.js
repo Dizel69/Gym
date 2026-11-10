@@ -18,7 +18,7 @@
 //   · fewer sets than prescribed                       → miss
 // So a session that fell apart can never advance the load as though it had succeeded.
 
-import { modeOf, repStep, rerampWarmups, isBw, isPerSide, entryExcluded, entryOnLine, splitsByReps } from './history.js'
+import { modeOf, repStep, rerampWarmups, isBw, isPerSide, sideReps, entryExcluded, entryOnLine, splitsByReps } from './history.js'
 import { EXIDX, isAssisted } from './exercises.js'
 import { isWarmupRow, isSideSet, syncSideAggregate, makeSideSet } from './workout-model.js'
 import { normalizeRepRange } from './rep-range.js'
@@ -328,7 +328,10 @@ function seedWeightFromOtherLines(S, cfg, step) {
     }
   }
   if (!best) return null
-  const raw = best.est / (1 + Number(cfg.reps) / 30)
+  // A per-side plan stores the total (12 + 12 = 24). The estimate was taken from one arm,
+  // so the inverse uses one arm too.
+  const reps = isPerSide(cfg) ? sideReps(cfg.reps) : Number(cfg.reps)
+  const raw = best.est / (1 + reps / 30)
   if (!(raw > 0)) return null
   const weight = snapWeight(raw, step)
   return weight > 0 ? weight : null

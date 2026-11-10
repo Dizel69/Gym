@@ -179,33 +179,77 @@ function manageMeasurementsSheet() {
   return useUI.getState().openSheet(close => <ManageMeasurements close={close} />)
 }
 
+function DayCard({ entry, onRemove }) {
+  const S = useStore(s => s.S)
+  const count = MEASUREMENT_KEYS.filter(k => entry[k] != null).length + (entry.other || []).filter(o => o.value != null).length
+  const preview = enabledMeasurementFields(S).map(f => ({ field: f, value: shownValue(entry, f, S.unit) })).filter(x => x.value != null).slice(0, 3)
+  const open = () => measurementLogSheet(entry.d)
+  return <div className="card">
+    <div className="row between">
+      <button className="meas-open" onClick={open}>
+        <b>{fmtDate(entry.d, true)}</b>
+        <div className="small dim" style={{ marginTop: 2 }}>{t(count === 1 ? '{0} measurement' : '{0} measurements', count)}</div>
+      </button>
+      <div className="row" style={{ gap: 4 }}>
+        <button className="iconbtn" onClick={open} aria-label={t('Edit')}><Icon name="pencil" /></button>
+        <button className="iconbtn" style={{ color: 'var(--red)' }} onClick={() => onRemove(entry)} aria-label={t('Delete')}><Icon name="trash" /></button>
+      </div>
+    </div>
+    {preview.length > 0 && <button className="meas-open" style={{ marginTop: 8 }} onClick={open}>{preview.map(({ field: f, value }) => <span key={f.key} style={{ marginRight: 12 }}>{f.custom ? f.label : t(f.label)} <b>{withUnit(value, fieldUnit(f, S.unit))}</b></span>)}</button>}
+  </div>
+}
+
+function MeasurementHistory() {
+  const S = useStore(s => s.S)
+  const recent = [...(S.measurements || [])].reverse()
+  const remove = entry => confirmSheet({
+    title: t('Delete measurements?'),
+    message: t('Deletes the measurements logged on {0}.', fmtDate(entry.d, true)),
+    confirmText: t('Delete'), danger: true,
+    onConfirm: () => { update(state => { state.measurements = state.measurements.filter(e => e.d !== entry.d) }); toast(t('Measurements deleted')) },
+  })
+  return <>
+    <h3>{t('Measurement history')}</h3>
+    {recent.length ? <div className="list">{recent.map(entry => <DayCard key={entry.d} entry={entry} onRemove={remove} />)}</div>
+      : <div className="empty small">{t('No measurements yet')}</div>}
+  </>
+}
+
+function MeasurementChart({ field, range }) {
+  const S = useStore(s => s.S)
+  const points = measurementSeries(S, field.key, range)
+  const unit = fieldUnit(field, S.unit)
+  const all = measurementSeries(S, field.key)
+  const latest = all.at(-1)
+  const previous = all.at(-2)
+  const delta = latest && previous ? Math.round((latest.y - previous.y) * 10) / 10 : null
+  const label = field.custom ? field.label : t(field.label)
+  return <div className="card">
+    <div className="muted small">{label}</div>
+    <div className="big" style={{ marginTop: 3 }}>{latest ? <>{fmtNum(latest.y)} <span className="muted" style={{ fontSize: '1rem' }}>{unit}</span></> : '–'}</div>
+    {delta != null && delta !== 0 && <div className="small dim" style={{ marginTop: 3 }}>{delta > 0 ? '+' : ''}{withUnit(delta, unit)} {t('since previous')}</div>}
+    <div className="chart" style={{ marginTop: 8 }}><LineChart points={points} h={170} unit={unit} color="var(--teal)" dots dayLabels /></div>
+  </div>
+}
+
 export default function Measurements() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const [range, setRange] = useState(90)
   const available = useMemo(() => {
-    const out = enabledMeasurementFields(S)
-    for (const field of MEASUREMENT_FIELDS) {
-      if (latestMeasurement(S, field.key) && !out.some(f => f.key === field.key)) out.push(field)
+    const out = []
+    const push = field => {
+      if (out.some(f => f.key === field.key) || !latestMeasurement(S, field.key)) return
+      out.push(field)
     }
+    for (const field of enabledMeasurementFields(S)) push(field)
+    for (const field of MEASUREMENT_FIELDS) push(field)
     for (const custom of S.customMeasurements || []) {
-      const key = 'other:' + custom.id
-      if (latestMeasurement(S, key) && !out.some(f => f.key === key)) out.push({ key, label: custom.name, unit: custom.unit, custom: true, group: 'Other' })
+      push({ key: 'other:' + custom.id, label: custom.name, unit: custom.unit, custom: true, group: 'Other' })
     }
     return out
   }, [S])
-  const fallback = available.find(f => f.key === 'waist')?.key || available[0]?.key || null
-  const [selected, setSelected] = useState(fallback)
-  const key = available.some(f => f.key === selected) ? selected : fallback
-  const field = available.find(f => f.key === key)
-  const points = key ? measurementSeries(S, key, range) : []
-  const unit = fieldUnit(field, S.unit)
-  const all = key ? measurementSeries(S, key) : []
-  const latest = all.at(-1)
-  const previous = all.at(-2)
-  const delta = latest && previous ? Math.round((latest.y - previous.y) * 10) / 10 : null
   const recent = [...(S.measurements || [])].reverse()
-
   const remove = entry => confirmSheet({
     title: t('Delete measurements?'),
     message: t('Deletes the measurements logged on {0}.', fmtDate(entry.d, true)),
@@ -220,50 +264,25 @@ export default function Measurements() {
       <button className="iconbtn" onClick={manageMeasurementsSheet} aria-label={t('Choose measurements')}><Icon name="gear" /></button>
     </div>
 
-    <div className="card">
-      <div className="row between" style={{ marginBottom: 10 }}>
-        <div>
-          <div className="muted small">{field ? t(field.label) : t('Body measurements')}</div>
-          <div className="big" style={{ marginTop: 3 }}>{latest ? <>{fmtNum(latest.y)} <span className="muted" style={{ fontSize: '1rem' }}>{unit}</span></> : '–'}</div>
-          {delta != null && delta !== 0 && <div className="small dim" style={{ marginTop: 3 }}>{delta > 0 ? '+' : ''}{withUnit(delta, unit)} {t('since previous')}</div>}
-        </div>
+    <button className="meas-hist" onClick={() => useUI.getState().openSheet(() => <MeasurementHistory />)}>
+      <h4 className="sec">{t('Measurement history')}</h4>
+      <Icon name="chevronRight" className="chev" />
+    </button>
+    {recent.length ? <div className="list">{recent.slice(0, 2).map(entry => <DayCard key={entry.d} entry={entry} onRemove={remove} />)}</div>
+      : <div className="empty small">{t('No measurements yet')}</div>}
+
+    {available.length > 0 && <>
+      <div className="row between" style={{ margin: '6px 0 10px', gap: 8 }}>
+        <Segmented className="seg-range" value={range} onChange={setRange}
+          options={[{ value: 30, label: '1M' }, { value: 90, label: '3M' }, { value: 365, label: '1Y' }, { value: 0, label: t('All') }]} />
         <Button size="sm" icon="plus" onClick={() => measurementGuideSheet()}>{t('Log')}</Button>
       </div>
-      {available.length > 0 && <div className="sect-b" style={{ marginBottom: 8 }}><SelectRow
-        title={t('Measurement')} sheetTitle={t('Choose measurement')} value={key} onChange={setSelected}
-        options={available.map(f => ({ value: f.key, label: f.custom ? f.label : t(f.label) }))} />
-      </div>}
-      <Segmented className="seg-range" value={range} onChange={setRange}
-        options={[{ value: 30, label: '1M' }, { value: 90, label: '3M' }, { value: 365, label: '1Y' }, { value: 0, label: t('All') }]} />
-      <div className="chart"><LineChart points={points} h={170} unit={unit} color="var(--teal)" /></div>
-    </div>
+      {available.map(field => <MeasurementChart key={field.key} field={field} range={range} />)}
+    </>}
 
     {!available.length && <div className="card">
       <div className="muted small">{t('Choose the measurements you want to track, then log your first check-in.')}</div>
       <div style={{ height: 10 }} /><Button onClick={manageMeasurementsSheet}>{t('Choose measurements')}</Button>
     </div>}
-
-    <div className="row between" style={{ margin: '18px 2px 10px' }}>
-      <h4 className="sec" style={{ margin: 0 }}>{t('Measurement history')}</h4>
-      <Button size="sm" variant="ghost" icon="gear" onClick={manageMeasurementsSheet}>{t('Fields')}</Button>
-    </div>
-    {recent.length ? <div className="list">{recent.map(entry => {
-      const count = MEASUREMENT_KEYS.filter(k => entry[k] != null).length + (entry.other || []).filter(o => o.value != null).length
-      const preview = enabledMeasurementFields(S).map(f => ({ field: f, value: shownValue(entry, f, S.unit) })).filter(x => x.value != null).slice(0, 3)
-      const open = () => measurementLogSheet(entry.d)
-      return <div className="card" key={entry.d}>
-        <div className="row between">
-          <button className="meas-open" onClick={open}>
-            <b>{fmtDate(entry.d, true)}</b>
-            <div className="small dim" style={{ marginTop: 2 }}>{t(count === 1 ? '{0} measurement' : '{0} measurements', count)}</div>
-          </button>
-          <div className="row" style={{ gap: 4 }}>
-            <button className="iconbtn" onClick={open} aria-label={t('Edit')}><Icon name="pencil" /></button>
-            <button className="iconbtn" style={{ color: 'var(--red)' }} onClick={() => remove(entry)} aria-label={t('Delete')}><Icon name="trash" /></button>
-          </div>
-        </div>
-        {preview.length > 0 && <button className="meas-open" style={{ marginTop: 8 }} onClick={open}>{preview.map(({ field: f, value }) => <span key={f.key} style={{ marginRight: 12 }}>{f.custom ? f.label : t(f.label)} <b>{withUnit(value, fieldUnit(f, S.unit))}</b></span>)}</button>}
-      </div>
-    })}</div> : <div className="empty small">{t('No measurements yet')}</div>}
   </div>
 }

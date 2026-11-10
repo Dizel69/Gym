@@ -20,9 +20,11 @@ export const LEVEL_NAME = {
 
 // [Beginner, Novice, Intermediate, Advanced, Elite] as a multiple of body weight.
 export const STANDARDS = {
-  squat: { ids: ['0043', '3593'], m: [0.75, 1.25, 1.5, 2.25, 2.75], f: [0.5, 0.75, 1.25, 1.5, 2] },
-  bench: { ids: ['0025'], m: [0.5, 0.75, 1, 1.5, 2], f: [0.25, 0.5, 0.75, 1, 1.5] },
-  deadlift: { ids: ['0032', '0117'], m: [1, 1.5, 2, 2.5, 3], f: [0.5, 1, 1.25, 1.75, 2.5] },
+  // Camera angles and the rack shot are the same lift. A full squat filmed from behind
+  // was otherwise invisible next to the front-view id.
+  squat: { ids: ['0043', '3593', '1461', '1462', '0878'], m: [0.75, 1.25, 1.5, 2.25, 2.75], f: [0.5, 0.75, 1.25, 1.5, 2] },
+  bench: { ids: ['0025', '6813'], m: [0.5, 0.75, 1, 1.5, 2], f: [0.25, 0.5, 0.75, 1, 1.5] },
+  deadlift: { ids: ['0032', '0117', '0967', '6692'], m: [1, 1.5, 2, 2.5, 3], f: [0.5, 1, 1.25, 1.75, 2.5] },
   press: { ids: ['1162'], m: [0.35, 0.55, 0.8, 1.05, 1.35], f: [0.2, 0.35, 0.5, 0.75, 1] },
   row: { ids: ['0027'], m: [0.5, 0.75, 1, 1.5, 1.75], f: [0.25, 0.4, 0.65, 0.9, 1.2] },
   frontSquat: { ids: ['0042'], m: [0.55, 0.8, 1.2, 1.6, 2], f: [0.35, 0.55, 0.85, 1.15, 1.5] },
@@ -30,9 +32,13 @@ export const STANDARDS = {
   rdl: { ids: ['0085'], m: [0.6, 1, 1.4, 1.9, 2.4], f: [0.4, 0.65, 1, 1.4, 1.8] },
   hipThrust: { ids: ['1060'], m: [0.5, 1, 1.75, 2.5, 3.25], f: [0.5, 1, 1.5, 2.25, 3] },
   curl: { ids: ['0031'], m: [0.2, 0.4, 0.6, 0.85, 1.15], f: [0.1, 0.2, 0.4, 0.6, 0.85] },
-  dbBench: { ids: ['0289'], perBell: true, m: [0.2, 0.35, 0.5, 0.75, 1], f: [0.1, 0.2, 0.35, 0.5, 0.7] },
-  dbPress: { ids: ['0405'], perBell: true, m: [0.15, 0.25, 0.4, 0.6, 0.8], f: [0.1, 0.15, 0.25, 0.4, 0.55] },
-  dbCurl: { ids: ['0294'], perBell: true, m: [0.1, 0.2, 0.3, 0.45, 0.6], f: [0.05, 0.1, 0.2, 0.3, 0.4] },
+  // Incline and the flat press share this per-bell table: the catalogue splits them,
+  // and there is no second published line for the incline.
+  dbBench: { ids: ['0289', '0314', '3545'], perBell: true, m: [0.2, 0.35, 0.5, 0.75, 1], f: [0.1, 0.2, 0.35, 0.5, 0.7] },
+  // Seated "bench press", neutral grip and the standing press are the same overhead press.
+  dbPress: { ids: ['0405', '0290', '0404', '0426', '0414'], perBell: true, m: [0.15, 0.25, 0.4, 0.6, 0.8], f: [0.1, 0.15, 0.25, 0.4, 0.55] },
+  // Both arms together, standing, or one arm at a time: the same curl.
+  dbCurl: { ids: ['0294', '0416', '0285', '1196', '3761'], perBell: true, m: [0.1, 0.2, 0.3, 0.45, 0.6], f: [0.05, 0.1, 0.2, 0.3, 0.4] },
 }
 const BY_ID = Object.fromEntries(Object.entries(STANDARDS).flatMap(([k, v]) => v.ids.map(id => [id, k])))
 
@@ -58,6 +64,17 @@ export function levelAt(ratio, thresholds) {
 function nextWeight(ratio, bw) {
   const raw = ratio * bw
   return Math.ceil(raw * 2 - 1e-9) / 2
+}
+
+/** The estimated 1RM that opens each level at this lifter's body weight. */
+export function levelWeights(lv) {
+  if (!lv?.thresholds || !(lv.bw > 0)) return []
+  return LEVELS.map((name, i) => ({
+    name,
+    ratio: lv.thresholds[i],
+    weight: nextWeight(lv.thresholds[i], lv.bw),
+    reached: i <= lv.level,
+  }))
 }
 
 /**

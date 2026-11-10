@@ -103,6 +103,22 @@ describe('LineChart hover state', () => {
   })
 })
 
+describe('LineChart date axis', () => {
+  it('puts a short span on the real days, with the gap the calendar actually has', () => {
+    const days = [point(2026, 11, 7, 132), point(2026, 11, 9, 132), point(2026, 11, 10, 133.5)]
+    renderChart(days, { axes: true })
+    const labels = [...container.querySelectorAll('svg text')]
+      .filter(n => /Nov/.test(n.textContent))
+      .map(n => ({ txt: n.textContent, x: Number(n.getAttribute('x')) }))
+    const at = prefix => labels.find(l => l.txt.startsWith(prefix))
+    const a = at('7 '), b = at('9 '), c = at('10 ')
+    expect(a && b && c).toBeTruthy()
+    // 7 → 9 is two days, 9 → 10 is one, so the middle label sits twice as far from the first.
+    expect(b.x - a.x).toBeCloseTo(2 * (c.x - b.x), 0)
+    expect(b.x).toBeGreaterThan((a.x + c.x) / 2)
+  })
+})
+
 describe('LineChart day labels', () => {
   it('labels at least five workout dates instead of the months they fall in', () => {
     const days = [1, 8, 15, 22, 29, 5].map((day, i) => point(i < 5 ? 2026 : 2026, i < 5 ? 8 : 9, day, 40 + i * 5))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { levelAt, liftOf, strengthLevel, strengthLevels } from './strength-level.js'
+import { levelAt, levelWeights, liftOf, strengthLevel, strengthLevels } from './strength-level.js'
 
 const profile = (over = {}) => ({
   unit: 'kg',
@@ -43,6 +43,64 @@ describe('strength level', () => {
     expect(light.next).toMatchObject({ name: 'beginner', weight: 40 })
   })
 
+  it('grades a rear-view full squat as the same squat', () => {
+    expect(liftOf('1461')).toBe('squat')
+    expect(liftOf('1462')).toBe('squat')
+    expect(liftOf('0878')).toBe('squat')
+    expect(liftOf('6813')).toBe('bench')
+    expect(liftOf('0967')).toBe('deadlift')
+    const S = profile({
+      workouts: [{
+        id: 'w', d: '2026-11-09', start: 1,
+        entries: [{ id: '1461', sets: [{ w: 100, r: 7, done: true }] }],
+      }],
+    })
+    const squat = strengthLevels(S).find(r => r.lift === 'squat')
+    expect(squat.id).toBe('1461')
+    expect(squat.e1rm).toBeGreaterThan(100)
+  })
+
+  it('grades the incline dumbbell press, the seated press and the alternating curl', () => {
+    expect(liftOf('0314')).toBe('dbBench')
+    expect(liftOf('3545')).toBe('dbBench')
+    expect(liftOf('0290')).toBe('dbPress')
+    expect(liftOf('0426')).toBe('dbPress')
+    expect(liftOf('0285')).toBe('dbCurl')
+    expect(liftOf('0416')).toBe('dbCurl')
+    const S = profile({
+      workouts: [{
+        id: 'w', d: '2026-11-09', start: 1,
+        entries: [
+          { id: '0314', sets: [{ w: 20, r: 8, done: true }] },
+          { id: '0290', sets: [{ w: 15, r: 12, done: true }] },
+          { id: '0285', sets: [{ w: 12.5, r: 8, done: true }] },
+        ],
+      }],
+    })
+    const rows = strengthLevels(S)
+    expect(rows.find(r => r.lift === 'dbBench')).toMatchObject({ id: '0314', perBell: true })
+    expect(rows.find(r => r.lift === 'dbPress')).toMatchObject({ id: '0290', perBell: true })
+    expect(rows.find(r => r.lift === 'dbCurl')).toMatchObject({ id: '0285', perBell: true })
+  })
+
+  it('grades an alternating curl from the reps on one arm', () => {
+    const S = profile({
+      workouts: [{
+        id: 'w', d: '2026-11-09', start: 1,
+        entries: [{
+          id: '0285',
+          sets: [{
+            w: 12.5, r: 24, done: true,
+            sides: { L: { w: 12.5, r: 12, done: true }, R: { w: 12.5, r: 12, done: true } },
+          }],
+        }],
+      }],
+    })
+    const curl = strengthLevels(S).find(r => r.lift === 'dbCurl')
+    expect(curl.e1rm).toBe(17.5)
+    expect(curl.name).toBe('novice')
+  })
+
   it('keeps the stronger of two squat names and reads a dumbbell per bell', () => {
     const S = profile({
       workouts: [{
@@ -63,6 +121,14 @@ describe('strength level', () => {
     expect(curl.perBell).toBe(true)
     expect(curl.ratio).toBe(0.2)
     expect(curl.name).toBe('novice')
+  })
+
+  it('lists the one-rep max that opens every level at this body weight', () => {
+    const lv = strengthLevel(profile(), '0025')
+    const steps = levelWeights(lv)
+    expect(steps.map(s => s.weight)).toEqual([40, 60, 80, 120, 160])
+    expect(steps.map(s => s.reached)).toEqual([true, true, true, false, false])
+    expect(steps[2].name).toBe('intermediate')
   })
 
   it('uses the latest weigh-in and stops at elite', () => {
