@@ -409,16 +409,26 @@ export function nextTrainingDay(S, iso) {
  * many warm-up sets the routine asks for (`cfg.warmupSets`, 0 by default so an existing plan
  * behaves exactly as before).
  *
- * The warm-ups are stacked with insertWarmupRow, one call each, so the ramp is the same one
- * the in-session "Add warm-up set" button produces: each row halves the gap left to the work
- * weight, giving 50% / 75% / 87.5% for three. `options.step` is the exercise's loading step,
- * passed in by the caller (see insertWarmupRow for why this module cannot read it itself).
+ * Without a warm-up weight of its own the rows are stacked with insertWarmupRow, the same
+ * ramp the in-session "Add warm-up set" button produces: each row halves the gap left to
+ * the work weight. A plan that names `warmupWeight` (and optionally `warmupReps`) gets
+ * that load on every warm-up row instead, and progression of the work sets does not move
+ * it. `options.step` is the exercise's loading step, passed in by the caller (see
+ * insertWarmupRow for why this module cannot read it itself).
  */
 export function buildSets(S, cfg, options = {}) {
   const rows = buildWorkSets(S, cfg, options)
   const warm = Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(cfg.warmupSets) || 0))
   if (!warm) return rows
   const mode = modeOf(cfg)
+  const fixed = mode === 'reps' ? prescribedWarmup(cfg) : null
+  if (fixed) {
+    const block = []
+    for (let i = 0; i < warm; i++) {
+      block.push({ w: fixed.w, r: fixed.r, done: false, phase: 'warmup', warmup: true, warmupFixed: true })
+    }
+    return block.concat(rows)
+  }
   let out = rows
   for (let i = 0; i < warm; i++) out = insertWarmupRow(out, mode, cfg, options.step)
   return out
@@ -678,6 +688,9 @@ export function cascadeWeight(rows, from, value) {
  * — cardio, bodyweight, an unloaded hold — are returned untouched.
  */
 export function rerampWarmups(rows, step = 2.5) {
+  // A warm-up the plan named by weight stays at that weight. Re-aiming it at the work
+  // set is what made an empty-bar joint warm-up climb every time the bench went up.
+  if (rows.some(row => row && row.warmupFixed)) return rows
   const firstWork = rows.findIndex(x => !isWarmupRow(x))
   if (firstWork <= 0) return rows
   const target = rows[firstWork].w || 0
@@ -695,9 +708,24 @@ export function rerampWarmups(rows, step = 2.5) {
   return out
 }
 
+/** The plan's own warm-up load, or null when the rows should keep ramping toward the work weight. */
+function prescribedWarmup(target) {
+  if (!target || target.warmupWeight == null || target.warmupWeight === '') return null
+  const w = Number(target.warmupWeight)
+  if (!Number.isFinite(w) || w < 0) return null
+  const r = Math.max(1, Math.round(Number(target.warmupReps)) || Math.round(Number(target.reps)) || 1)
+  return { w, r }
+}
+
 export function insertWarmupRow(rows, mode, target, step = 2.5) {
   const firstWork = rows.findIndex(x => !isWarmupRow(x))
   const at = firstWork === -1 ? rows.length : firstWork
+  const fixed = mode === 'reps' ? prescribedWarmup(target) : null
+  if (fixed) {
+    const next = rows.slice()
+    next.splice(at, 0, { w: fixed.w, r: fixed.r, done: false, phase: 'warmup', warmup: true, warmupFixed: true })
+    return next
+  }
   const prev = at > 0 ? rows[at - 1] : null            // the warm-up this one ramps from
   const work = firstWork === -1 ? null : rows[firstWork]
   const rampTo = to => {

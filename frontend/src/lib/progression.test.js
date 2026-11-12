@@ -212,6 +212,35 @@ describe('linear progression', () => {
     expect(edited.why[0]).toBe('Using the weight from the plan.')
   })
 
+  it('steps a warm-up weight only when its own progression is on', () => {
+    const withWarm = (warmupProg) => {
+      const plan = {
+        id: LIFT, sets: 3, reps: 5, weight: 60, prog: 'linear',
+        warmupSets: 1, warmupWeight: 20, warmupReps: 10, ...(warmupProg ? { warmupProg: true } : {}),
+      }
+      const state = {
+        unit: 'kg',
+        routines: [{ id: 'r1', ex: [plan] }],
+        workouts: [{
+          d: '2026-11-06',
+          entries: [{
+            id: LIFT, rid: 'r1',
+            target: { sets: 3, reps: 5, repsTop: 5, weight: 60 },
+            sets: [5, 5, 5].map(r => ({ w: 60, r, done: true })),
+          }],
+        }],
+      }
+      writeLinearPlanWeights(state, state.workouts[0])
+      return plan
+    }
+    const moving = withWarm(true)
+    expect(moving.weight).toBe(62.5)
+    expect(moving.warmupWeight).toBe(22.5)
+    const still = withWarm(false)
+    expect(still.weight).toBe(62.5)
+    expect(still.warmupWeight).toBe(20)
+  })
+
   it('copies the weight the next workout would use into the plan, once', () => {
     const curl = { id: LIFT, sets: 4, reps: 8, weight: 25, prog: 'linear' }
     const otherLine = { id: LIFT, sets: 3, reps: 12, weight: 20, prog: 'linear' }

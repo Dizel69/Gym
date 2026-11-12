@@ -598,6 +598,12 @@ export function writeLinearPlanWeights(state, workout) {
     const next = nextPrescription(state, cfg, routine)
     if (next.policy !== 'linear' || next.weight == null) continue
     if (next.kind === 'first' || next.kind === 'seed' || next.kind === 'off') continue
+    // The warm-up has its own switch. Off (the usual case) leaves the empty bar where it
+    // was typed. On, it moves by the same amount as the work weight, up or down.
+    if (cfg.warmupProg && cfg.warmupWeight != null && next.weight !== cfg.weight) {
+      const moved = Number(cfg.warmupWeight) + (next.weight - cfg.weight)
+      if (Number.isFinite(moved)) cfg.warmupWeight = Math.max(0, Math.round(moved * 1000) / 1000)
+    }
     cfg.weight = next.weight
     cfg.progressionNote = { weight: next.weight, kind: next.kind, why: next.why }
   }

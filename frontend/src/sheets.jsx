@@ -1242,6 +1242,15 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
   const seed = existing || initial || defaultConfig(ex.id)
   const [c, setC] = useState(() => {
     const cfg = { ...seed }
+    // An existing ramp has no weight of its own. Offer the bar (or 0, when there is no bar)
+    // so the next save pins the warm-up instead of letting it chase the work weight.
+    if (modeOf({ ...cfg, id: ex.id }) === 'reps' && (cfg.warmupSets || 0) > 0) {
+      if (cfg.warmupWeight == null) {
+        const bar = barWeightFor(st, ex.id)
+        cfg.warmupWeight = bar == null ? 0 : bar
+      }
+      if (!(Number(cfg.warmupReps) > 0)) cfg.warmupReps = Math.max(1, Math.round(cfg.reps) || 10)
+    }
     return policyFor({ ...cfg, id: ex.id }, routine, modeOf({ ...cfg, id: ex.id })) === 'double'
       ? { ...cfg, ...normalizeRepRange(cfg.reps, cfg.repsMin, isPerSide(cfg) ? 2 : 1) }
       : cfg
@@ -1300,7 +1309,17 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
     // Only written when there are any, so a plan that never asked for warm-ups keeps the exact
     // shape it had — and reads back as 0 either way (buildSets).
     const warmupSets = Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(c.warmupSets) || 0))
-    const withWarmups = warmupSets ? { warmupSets } : {}
+    const withWarmups = {}
+    if (warmupSets) {
+      withWarmups.warmupSets = warmupSets
+      // Only a rep plan names the warm-up load. A timed hold keeps the old ramp.
+      if (mode === 'reps' && c.warmupWeight != null) {
+        withWarmups.warmupWeight = Math.max(0, Number(c.warmupWeight) || 0)
+        const warmReps = Math.max(1, Math.round(c.warmupReps) || 0)
+        if (warmReps) withWarmups.warmupReps = warmReps
+        if (c.warmupProg) withWarmups.warmupProg = true
+      }
+    }
     // Per-exercise rest (issue #10): written only when a positive value was set, so 0 keeps
     // inheriting the global rest timer and a config that never touched it stays the shape it
     // was. Mode-independent — a heavy triple, a plank and a cardio interval all rest.
@@ -1377,11 +1396,24 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
     {!cardio && c.intensifier?.type !== 'restpause' && <>
       <div className="row cfgrow" style={{ marginBottom: 6 }}>
         <Stepper label={t('Warm-up sets')} value={c.warmupSets || 0} step={1} decimal={false}
-          onChange={v => setC(x => ({ ...x, warmupSets: Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(v) || 0)) }))} />
+          onChange={v => setC(x => {
+            const warmupSets = Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(v) || 0))
+            const next = { ...x, warmupSets }
+            if (warmupSets > 0 && mode === 'reps') {
+              if (next.warmupWeight == null) {
+                const bar = barWeightFor(st, ex.id)
+                next.warmupWeight = bar == null ? 0 : bar
+              }
+              if (!(Number(next.warmupReps) > 0)) next.warmupReps = Math.max(1, Math.round(x.reps) || 10)
+            }
+            return next
+          })} />
       </div>
       <div className="small dim" style={{ marginBottom: 18 }}>
         {(c.warmupSets || 0) > 0
-          ? t('Added before your work sets and left out of volume, records and progression. Each one closes half the gap to the work weight — you can still change any of them mid-session.')
+          ? (mode === 'reps'
+            ? t('Added before your work sets and left out of volume, records and progression. Set their weight and reps below.')
+            : t('Added before your work sets and left out of volume, records and progression. Each one closes half the gap to the work weight — you can still change any of them mid-session.'))
           : t('Ramp-up sets added before the work sets, so you do not have to add them by hand each session.')}
       </div>
     </>}
@@ -1416,6 +1448,25 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
         })} />
       </Row>}
     </div>}
+    {mode === 'reps' && (c.warmupSets || 0) > 0 && <>
+      <div className="row cfgrow" style={{ marginBottom: 6 }}>
+        <Stepper label={t('Warm-up weight ({0})', st.unit)} value={Number(c.warmupWeight) || 0} step={2.5}
+          onChange={v => setC(x => ({ ...x, warmupWeight: Math.max(0, v || 0) }))} />
+        <Stepper label={t('Warm-up reps')} value={c.warmupReps || 1} step={perSide ? 2 : 1} decimal={false}
+          onChange={v => setC(x => ({ ...x, warmupReps: Math.max(1, Math.round(v) || 1) }))} />
+      </div>
+      <div className="small dim" style={{ marginBottom: 10 }}>
+        {t('Every warm-up set uses this weight and these reps.')}
+      </div>
+      <div className="sect-b" style={{ marginBottom: 18 }}>
+        <Row icon="chartLine" iconTint="var(--acc)" title={t('Warm-up progression')}
+          subtitle={c.warmupProg
+            ? t('The warm-up weight changes by the same amount as the work weight.')
+            : t('The warm-up weight stays put when the work weight changes.')}>
+          <Switch checked={!!c.warmupProg} onChange={v => setC(x => ({ ...x, warmupProg: v || undefined }))} />
+        </Row>
+      </div>
+    </>}
     {/* A stepper is too wide to sit in a list row next to a label — it squeezes the text to
         one word per line — so added weight gets the same full-width treatment as sets and
         reps, with its explanation underneath. */}

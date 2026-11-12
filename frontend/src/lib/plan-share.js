@@ -41,6 +41,7 @@ function convertedExercise(e, sourceUnit, destinationUnit) {
   if (!sourceUnit || sourceUnit === destinationUnit) return e
   const out = { ...e }
   if (out.weight != null) out.weight = convertWeight(out.weight, sourceUnit, destinationUnit)
+  if (out.warmupWeight != null) out.warmupWeight = convertWeight(out.warmupWeight, sourceUnit, destinationUnit)
   // A timed increment is seconds, not a load. Rep-mode increments are load overrides.
   if (modeOf(out) === 'reps' && out.inc > 0) out.inc = convertWeight(out.inc, sourceUnit, destinationUnit)
   return out
@@ -98,7 +99,14 @@ function cleanEx(e) {
   if (e.sg) o.sg = e.sg
   if (e.note) o.note = e.note
   const warm = cleanWarmupSets(e.warmupSets)
-  if (warm) o.warmupSets = warm
+  if (warm) {
+    o.warmupSets = warm
+    const warmWeight = Number(e.warmupWeight)
+    if (Number.isFinite(warmWeight) && warmWeight >= 0) o.warmupWeight = warmWeight
+    const warmReps = Math.round(Number(e.warmupReps))
+    if (warmReps > 0) o.warmupReps = warmReps
+    if (e.warmupProg) o.warmupProg = true
+  }
   // Drop-sets and rest-pause are part of how the exercise is prescribed, not a logging detail.
   // Without this a shared "3x5 with a double drop" arrived at the other end as a plain 3x5,
   // silently — parsePlan's `dropped` counter only tracks exercises it cannot resolve at all.

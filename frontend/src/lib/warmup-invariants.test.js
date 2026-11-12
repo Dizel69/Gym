@@ -68,6 +68,13 @@ describe('the ramp follows the prescribed weight', () => {
     expect(warm).toEqual([25, 37.5])
   })
 
+  it('leaves a named warm-up weight alone when the work weight moves', () => {
+    const fixed = { ...cfg, warmupWeight: 20, warmupReps: 10 }
+    const rows = applyPrescription(buildSets(S, fixed, { step: 2.5 }), { kind: 'up', weight: 150 })
+    expect(rows.filter(r => r.phase === 'warmup').map(r => [r.w, r.r])).toEqual([[20, 10], [20, 10]])
+    expect(rows.filter(r => r.phase !== 'warmup').map(r => r.w)).toEqual([150, 150, 150])
+  })
+
   it('re-ramps after a bump', () => {
     const rows = applyPrescription(buildSets(S, cfg, { step: 2.5 }), { kind: 'up', weight: 150 })
     expect(rows.filter(r => r.phase !== 'warmup').map(r => r.w)).toEqual([150, 150, 150])

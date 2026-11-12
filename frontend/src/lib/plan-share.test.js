@@ -75,6 +75,14 @@ describe('what survives a shared plan', () => {
     expect(roundTrip({ warmupSets: 3 }).warmupSets).toBe(3)
   })
 
+  it('carries a fixed warm-up load, and the progression switch only when it is on', () => {
+    const kept = roundTrip({ warmupSets: 1, warmupWeight: 20, warmupReps: 12, warmupProg: true })
+    expect(kept.warmupWeight).toBe(20)
+    expect(kept.warmupReps).toBe(12)
+    expect(kept.warmupProg).toBe(true)
+    expect('warmupProg' in roundTrip({ warmupSets: 1, warmupWeight: 20, warmupReps: 10 })).toBe(false)
+  })
+
   it('carries a non-default Epley deload factor and omits the default', () => {
     expect(roundTrip({ deloadFactor: 0.8 }).deloadFactor).toBe(0.8)
     expect('deloadFactor' in roundTrip({ deloadFactor: 0.9 })).toBe(false)

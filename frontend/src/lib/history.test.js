@@ -380,6 +380,20 @@ describe('freestyleConfig', () => {
     ])
   })
 
+  it('uses the warm-up weight and reps from the plan instead of ramping', () => {
+    const S = { exWeights: {}, workouts: [] }
+    const rows = buildSets(S, {
+      id: '0025', mode: 'reps', sets: 2, reps: 5, weight: 80,
+      warmupSets: 2, warmupWeight: 20, warmupReps: 12,
+    }, { step: 2.5 })
+    expect(rows.map(r => [r.w, r.r, r.phase])).toEqual([
+      [20, 12, 'warmup'],
+      [20, 12, 'warmup'],
+      [80, 5, undefined],
+      [80, 5, undefined],
+    ])
+  })
+
   it('prepends the planned warm-ups as a ramp toward the work weight', () => {
     const S = { exWeights: {}, workouts: [] }
     const cfg = { id: '0025', mode: 'reps', sets: 2, reps: 5, weight: 100, warmupSets: 3 }
@@ -832,6 +846,15 @@ describe('session row helpers', () => {
     expect(next[2].warmup).toBe(true)
     expect(next[2].w).toBe(45)             // halfway from the last warm-up (30) to the work set (60)
     expect(next[3].w).toBe(60)             // work row still after the warm-up block
+  })
+
+  it('insertWarmupRow copies a prescribed warm-up instead of ramping', () => {
+    const rows = [
+      { warmup: true, warmupFixed: true, phase: 'warmup', w: 20, r: 12, done: false },
+      { w: 80, r: 5, done: false },
+    ]
+    const next = insertWarmupRow(rows, 'reps', { reps: 5, warmupWeight: 20, warmupReps: 12 }, 2.5)
+    expect(next.filter(r => r.phase === 'warmup').map(r => [r.w, r.r])).toEqual([[20, 12], [20, 12]])
   })
 
   // The first warm-up is the case that was broken: `at` is 0, so the old code read rows[-1],
