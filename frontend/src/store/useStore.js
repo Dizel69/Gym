@@ -89,6 +89,11 @@ export const DEF = {
   // Left in the saved state so a sync does not have to invent a migration.
   healthDays: [],
   healthImport: true,
+  // Decorations follow the calendar unless the owner picks Always or Off.
+  // adventOpen is the December doors already read, as YYYY-MM-DD. A missing
+  // key on an older profile falls out of DEF the same way as the rest.
+  holidayMode: 'auto',
+  adventOpen: [],
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 

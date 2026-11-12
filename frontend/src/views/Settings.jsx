@@ -385,6 +385,19 @@ export default function Settings() {
           onChange={v => update(s => { s.body = v })}
         />
       </Row>
+      <div className="lrow" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingTop: 13, paddingBottom: 14 }}>
+        <span className="lrow-t">{t('Decorations')}</span>
+        <Segmented
+          options={[
+            { value: 'auto', label: t('By date') },
+            { value: 'always', label: t('Always') },
+            { value: 'off', label: t('Off') },
+          ]}
+          value={S.holidayMode === 'off' || S.holidayMode === 'always' ? S.holidayMode : 'auto'}
+          onChange={v => update(s => { s.holidayMode = v })}
+        />
+        <span className="small dim">{t('By the calendar, the nearest one, or none. A workout is unchanged.')}</span>
+      </div>
       <div className="lrow" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, paddingTop: 13, paddingBottom: 14 }}>
         <span className="lrow-t">{t('Accent color')}</span>
         <div className="swatches">

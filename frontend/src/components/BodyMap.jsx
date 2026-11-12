@@ -1,6 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import { MUSCLES, INERT, MUSCLE_NAME, levelsOf } from '../lib/muscles.js'
 import { t } from '../lib/i18n.js'
+import { Kokoshnik, Pilotka, Pumpkin, SantaHat, StrawHat, Ushanka, Wreath } from './holiday-art.jsx'
+import { useHoliday } from './HolidayDecor.jsx'
 
 // Front and back views of a body, each muscle shaded by how hard it was worked.
 //
@@ -34,7 +36,52 @@ function regionsOf(view) {
   return [...MUSCLES, ...extra]
 }
 
-function View({ view, levels, onMuscle, selected }) {
+// Where the skull sits in each of the four views: centre x, top of the head, width.
+const HEADS = {
+  '0 95 727 1280': { cx: 364, top: 100, w: 124 },
+  '718 95 727 1280': { cx: 1084, top: 100, w: 120 },
+  '0 0 650 1450': { cx: 320, top: 72, w: 146 },
+  '823 0 650 1450': { cx: 1142, top: 72, w: 146 },
+}
+
+// k is the hat width in head widths, ratio its height over width, dy where its box
+// starts above the top of the head, in head widths.
+const HATS = {
+  santa: { Art: SantaHat, k: 1.42, ratio: 0.9, dy: -0.78 },
+  kokoshnik: { Art: Kokoshnik, k: 1.6, ratio: 0.82, dy: -0.8 },
+  ushanka: { Art: Ushanka, k: 1.7, ratio: 0.96, dy: -0.76 },
+  pilotka: { Art: Pilotka, k: 1.28, ratio: 0.52, dy: -0.3 },
+  wreath8: { Art: Wreath, k: 1.36, ratio: 0.6, dy: -0.24, palette: 'mar8' },
+  wreathSpring: { Art: Wreath, k: 1.36, ratio: 0.6, dy: -0.24, palette: 'spring' },
+  straw: { Art: StrawHat, k: 1.9, ratio: 0.533, dy: -0.55 },
+  pumpkin: { Art: Pumpkin, k: 1.5, ratio: 0.833, dy: -0.18, hides: true },
+}
+
+const WEAR = {
+  newyear: { male: 'santa', female: 'kokoshnik' },
+  feb23: { male: 'ushanka', female: 'ushanka' },
+  mar8: { female: 'wreath8' },
+  spring: { male: 'straw', female: 'wreathSpring' },
+  may9: { male: 'pilotka', female: 'pilotka' },
+  halloween: { male: 'pumpkin', female: 'pumpkin' },
+}
+
+function hatBox(vb, kind) {
+  const head = HEADS[vb]
+  const hat = HATS[kind]
+  if (!head || !hat) return null
+  const w = head.w * hat.k
+  return { x: head.cx - w / 2, y: head.top + hat.dy * head.w, w, h: w * hat.ratio }
+}
+
+// Both views grow by the same amount, or the two figures stop lining up.
+function grownViewBox(vb, extra) {
+  if (!extra) return vb
+  const [x, y, w, h] = vb.split(' ').map(Number)
+  return `${x} ${y - extra} ${w} ${h + extra}`
+}
+
+function View({ view, levels, onMuscle, selected, wear, extra = 0 }) {
   const uid = useId().replace(/:/g, '')
   const regions = regionsOf(view)
   const activate = (event, muscle) => {
@@ -47,11 +94,16 @@ function View({ view, levels, onMuscle, selected }) {
     const [x, y, w, h] = box
     clips.push(<clipPath id={`${uid}-${slug}-${i}`} key={slug + i}><rect x={x} y={y} width={w} height={h} /></clipPath>)
   }))
+  const hat = wear && HATS[wear]
+  const box = hat && hatBox(view.vb, wear)
+  const hideHead = !!(box && hat.hides)
+  const hideHair = hideHead
+  const front = String(view.vb).startsWith('0 ')
   return (
-    <svg className="bm-v" viewBox={view.vb} role={onMuscle ? 'group' : 'img'}>
+    <svg className="bm-v" viewBox={grownViewBox(view.vb, extra)} role={onMuscle ? 'group' : 'img'}>
       {clips.length ? <defs>{clips}</defs> : null}
       {INERT.map(slug => (view.p[slug] || []).map((d, i) =>
-        <path key={slug + i} className="bm-sil" d={d} />))}
+        <path key={slug + i} className={'bm-sil' + ((slug === 'head' && hideHead) || (slug === 'hair' && hideHair) ? ' bm-gone' : '')} d={d} />))}
       {regions.map(slug => (view.p[slug] || []).map((d, i) => {
         const muscle = PAINT_WITH[slug] || slug
         return (
@@ -72,6 +124,8 @@ function View({ view, levels, onMuscle, selected }) {
         </path>
         )
       }))}
+      {box && <hat.Art className={'bm-wear w-' + wear} x={box.x} y={box.y} width={box.w} height={box.h}
+        back={!front} face={front} palette={hat.palette} />}
     </svg>
   )
 }
@@ -87,11 +141,18 @@ export default function BodyMap({ load = {}, thresholds, body = 'male', onMuscle
   const paths = useBodyPaths()
   const levels = levelsOf(load, thresholds)
   const g = paths && (paths[body] || paths.male)
+  const wear = WEAR[useHoliday().theme?.id]?.[body === 'female' ? 'female' : 'male'] || null
+  let extra = 0
+  if (g && wear) for (const view of [g.front, g.back]) {
+    const box = hatBox(view.vb, wear)
+    const top = Number(view.vb.split(' ')[1])
+    if (box) extra = Math.max(extra, Math.ceil(top - box.y + 6))
+  }
   return (
     <div className={'bodymap ' + className}>
       {g ? <>
-        <View view={g.front} levels={levels} onMuscle={onMuscle} selected={selected} />
-        <View view={g.back} levels={levels} onMuscle={onMuscle} selected={selected} />
+        <View view={g.front} levels={levels} onMuscle={onMuscle} selected={selected} wear={wear} extra={extra} />
+        <View view={g.back} levels={levels} onMuscle={onMuscle} selected={selected} wear={wear} extra={extra} />
       </> : <div className="bm-ph" aria-hidden="true" />}
     </div>
   )

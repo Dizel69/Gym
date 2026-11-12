@@ -16,6 +16,7 @@ import { MEASUREMENT_FIELDS, measurementSeries, measurementUnit, measurementUnit
 import { measurementGuideSheet } from '../components/MeasureGuide.jsx'
 import { YearHomeCard } from '../components/YearReview.jsx'
 import MonthGoals from '../components/MonthGoals.jsx'
+import { FlameHat, HolidayBanner } from '../components/HolidayDecor.jsx'
 
 function WaistCard({ S }) {
   const nav = useNavigate()
@@ -103,6 +104,8 @@ export default function Home() {
       <div><h1>{user ? t('Hi {0}', user.name) : 'openGym'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
       <button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>
     </div>
+
+    <HolidayBanner />
 
     <div className="card">
       <div className="row between" style={{ marginBottom: 8 }}>
@@ -219,7 +222,10 @@ export default function Home() {
       <div className="row between">
         <div>
           <div className="row" style={{ gap: 7, fontSize: 22, fontWeight: 600, letterSpacing: '-.021em' }}>
-            <Icon name="flame" style={{ color: 'var(--orange)' }} />
+            <span className="streak-flame">
+              <FlameHat />
+              <Icon name="flame" style={{ color: 'var(--orange)' }} />
+            </span>
             {t('{0} week streak', streakWeeks(S))}
           </div>
           <div className="muted small" style={{ marginTop: 2 }}>{wThisWeek}{plannedPerWeek ? ' / ' + plannedPerWeek : ''} {t('this week')} · {t(S.workouts.length === 1 ? '{0} workout total' : '{0} workouts total', S.workouts.length)}</div>
