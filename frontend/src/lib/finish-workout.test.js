@@ -16,6 +16,21 @@ describe('completed workout boundary', () => {
     })
   })
 
+  it('keeps a set note on that set, not on the exercise', () => {
+    const active = {
+      id: 'w', d: '2026-08-08', start: 1, routineIds: ['r'],
+      entries: [{
+        id: '0025', note: 'whole exercise',
+        sets: [{ done: true, w: 80, r: 8, note: 'grip slipped' }, { done: true, w: 80, r: 6 }],
+        target: { sets: 2, reps: 8 },
+      }],
+    }
+    const done = buildCompletedWorkout(active)
+    expect(done.entries[0].note).toBe('whole exercise')
+    expect(done.entries[0].sets[0].note).toBe('grip slipped')
+    expect(done.entries[0].sets[1].note).toBeUndefined()
+  })
+
   it('mirrors routineIds → routineId, and tolerates a legacy scalar active.routineId', () => {
     const base = {
       id: 'w', d: '2026-08-08', start: 1,

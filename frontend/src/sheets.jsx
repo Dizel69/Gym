@@ -100,6 +100,50 @@ export function menuSheet(opts) {
   ui().openSheet(close => <MenuSheet {...opts} close={close} />)
 }
 
+// The set number opens this: a note for this set, then the same actions the number already had.
+// The note is stored on the set, not on the exercise and not on the workout.
+function SetMenu({ entryIdx, setIdx, title, subtitle, actions = [], close }) {
+  const noteRef = useRef(null)
+  const onFocus = useSheetKeyboard(noteRef)
+  const update = useStore(s => s.update)
+  const initial = useStore(s => s.S.active?.entries?.[entryIdx]?.sets?.[setIdx]?.note || '')
+  const [note, setNote] = useState(initial)
+  const latest = useRef(note)
+  latest.current = note
+  const saved = useRef(initial)
+  const write = text => {
+    const next = String(text || '').trim().slice(0, NOTE_MAX)
+    if (next === saved.current) return
+    update(s => {
+      const set = s.active?.entries?.[entryIdx]?.sets?.[setIdx]
+      if (!set) return
+      if (next) set.note = next
+      else delete set.note
+    })
+    saved.current = next
+  }
+  useEffect(() => () => write(latest.current), [])
+  return <>
+    {title && <h3 style={{ marginBottom: subtitle ? 2 : 10 }}>{title}</h3>}
+    {subtitle && <div className="muted small" style={{ marginBottom: 10 }}>{subtitle}</div>}
+    <textarea ref={noteRef} className="input" rows={2} maxLength={NOTE_MAX} value={note}
+      placeholder={t('Grip slipped, elbow twinged — kept on this set.')}
+      onFocus={onFocus} onChange={e => setNote(e.target.value)} onBlur={() => write(note)} />
+    {actions.filter(Boolean).length > 0 && <div className="list menu-list" style={{ marginTop: 12 }}>
+      {actions.filter(Boolean).map((it, i) => <div key={i}
+        className={'item menu-item' + (it.danger ? ' danger' : '') + (it.disabled ? ' disabled' : '')}
+        aria-disabled={it.disabled || undefined}
+        {...tappable(it.disabled ? null : () => { write(latest.current); close(); it.onClick && it.onClick() })}>
+        {it.icon && <span className="lrow-i"><Icon name={it.icon} /></span>}
+        <div className="grow"><div className="tt">{it.label}</div>{it.sub && <div className="ss">{it.sub}</div>}</div>
+      </div>)}
+    </div>}
+  </>
+}
+export function setMenuSheet(opts) {
+  ui().openSheet(close => <SetMenu {...opts} close={close} />)
+}
+
 // Themed replacement for window.confirm — callback-based (no blocking).
 export function confirmSheet(opts) {
   ui().openSheet(close => <ConfirmDialog {...opts} close={close} />, { kind: 'center', ...(opts.locked ? { locked: true } : {}) })
@@ -1908,10 +1952,11 @@ function WorkoutDetail({ w, close }) {
     const trends = last ? setTrendsFor(e, last) : []
     const shown = (e.sets || []).map((s, j) => [s, j]).filter(([s]) => hasCompletedWork(s))
     if (!shown.length) return t('no sets')
-    return shown.map(([s, j], k) => <span key={j}>
-      {k > 0 && '  ·  '}
-      <span className="wd-set">{setLabel(e.id, s, e.target)}{trends[j] && <span className={'settrend inline ' + (trends[j].dir > 0 ? 'up' : trends[j].dir < 0 ? 'down' : 'same')} role="img" aria-label={trendLabel(trends[j], st.unit)} title={trendLabel(trends[j], st.unit)}>{trendGlyph(trends[j])}</span>}</span>
-    </span>)
+    const mark = (s, j) => <span className="wd-set">{setLabel(e.id, s, e.target)}{trends[j] && <span className={'settrend inline ' + (trends[j].dir > 0 ? 'up' : trends[j].dir < 0 ? 'down' : 'same')} role="img" aria-label={trendLabel(trends[j], st.unit)} title={trendLabel(trends[j], st.unit)}>{trendGlyph(trends[j])}</span>}</span>
+    if (!shown.some(([s]) => (s.note || '').trim())) {
+      return shown.map(([s, j], k) => <span key={j}>{k > 0 && '  ·  '}{mark(s, j)}</span>)
+    }
+    return shown.map(([s, j]) => <div key={j} className="wd-setline">{mark(s, j)}{(s.note || '').trim() && <div className="small dim">{s.note}</div>}</div>)
   }
   const entryRow = (e, i) => {
     const ex = EXIDX[e.id]

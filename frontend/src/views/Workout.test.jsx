@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     headerHeight: 0,
     swapActiveWorkoutExercise: vi.fn(),
     menuSheet: vi.fn(),
+    setMenuSheet: vi.fn(),
     effortPickerSheet: vi.fn(),
     exerciseHistorySheet: vi.fn(),
     renameWorkoutSheet: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('../sheets.jsx', () => ({
   confirmSheet: mocks.confirmSheet,
   swapActiveWorkoutExercise: mocks.swapActiveWorkoutExercise,
   menuSheet: mocks.menuSheet,
+  setMenuSheet: mocks.setMenuSheet,
   barWeightSheet: vi.fn(),
   // Both note sheets belong here even though the tests never open one: Workout.jsx reads
   // sessionNoteSheet during render, so a missing export is a render crash, not a no-op.
@@ -1333,15 +1335,18 @@ describe('workout controls: the more menu and the set menu', () => {
   })
 
   it('opens a per-set menu from the set number with drop, burst and remove', async () => {
+    const lastSet = () => mocks.setMenuSheet.mock.calls.at(-1)[0]
+    const setItem = label => lastSet().actions.filter(Boolean).find(it => it.label === label)
     await mount([exercise('plain-bench', [false, false])])
     await act(async () => { container.querySelector('button[aria-label="Set 2"]').dispatchEvent(new dom.Event('click', { bubbles: true })) })
-    expect(lastMenu().items.filter(Boolean).map(it => it.label)).toEqual(['Drop set', 'Rest-pause burst', 'Remove this set'])
+    expect(lastSet().setIdx).toBe(1)
+    expect(lastSet().actions.filter(Boolean).map(it => it.label)).toEqual(['Drop set', 'Rest-pause burst', 'Remove this set'])
 
-    await act(async () => { item('Drop set').onClick() })
+    await act(async () => { setItem('Drop set').onClick() })
     expect(mocks.S.active.entries[0].sets[1].drops?.length).toBe(1)
 
     await act(async () => { container.querySelector('button[aria-label="Set 2"]').dispatchEvent(new dom.Event('click', { bubbles: true })) })
-    await act(async () => { item('Remove this set').onClick() })
+    await act(async () => { setItem('Remove this set').onClick() })
     expect(mocks.S.active.entries[0].sets.length).toBe(1)
   })
 

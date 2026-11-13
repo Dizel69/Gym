@@ -7,7 +7,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { exerciseNoteSheet } from '../sheets.jsx'
+import { exerciseNoteSheet, setMenuSheet } from '../sheets.jsx'
 
 const activeWith = entry => ({ id: 'w1', d: '2026-08-25', start: 1, routineId: 'r1', name: 'Push', entries: [entry] })
 
@@ -85,5 +85,65 @@ describe('exercise note sheet', () => {
     const e = useStore.getState().S.active.entries[0]
     expect(e.note).toBeUndefined()
     expect(e.notePin).toBeUndefined()
+  })
+})
+
+describe('set note sheet', () => {
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    useUI.setState({ sheets: [] })
+    useStore.setState(s => ({
+      S: {
+        ...s.S,
+        active: activeWith({
+          id: 'bench', note: 'whole exercise',
+          sets: [{ done: true, w: 80, r: 8 }, { done: true, w: 80, r: 6 }],
+        }),
+      },
+    }))
+    document.body.innerHTML = ''
+  })
+
+  afterEach(() => {
+    act(() => { mounted.splice(0).forEach(r => r.unmount()) })
+  })
+
+  const open = setIdx => {
+    setMenuSheet({ entryIdx: 0, setIdx, title: 'Set 1', actions: [] })
+    const sheet = useUI.getState().sheets.at(-1)
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mounted.push(root)
+    act(() => root.render(sheet.render(sheet_close(sheet))))
+    return host
+  }
+
+  it('keeps the line on that set and leaves the exercise note alone', () => {
+    const host = open(0)
+    const area = host.querySelector('textarea')
+    act(() => { type(area, '  grip slipped  ') })
+    act(() => { area.focus(); area.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })
+    const e = useStore.getState().S.active.entries[0]
+    expect(e.sets[0].note).toBe('grip slipped')
+    expect(e.sets[1].note).toBeUndefined()
+    expect(e.note).toBe('whole exercise')
+  })
+
+  it('an empty line removes the set note', () => {
+    useStore.setState(s => ({
+      S: {
+        ...s.S,
+        active: activeWith({
+          id: 'bench',
+          sets: [{ done: true, w: 80, r: 8, note: 'elbow' }],
+        }),
+      },
+    }))
+    const host = open(0)
+    const area = host.querySelector('textarea')
+    act(() => { type(area, '   ') })
+    act(() => { area.focus(); area.dispatchEvent(new FocusEvent('focusout', { bubbles: true })) })
+    expect(useStore.getState().S.active.entries[0].sets[0].note).toBeUndefined()
   })
 })

@@ -269,6 +269,7 @@ export default {
   'PRs': 'Рекорды',
   'New PR:': 'Новый рекорд:',
   'Nice!': 'Отлично!',
+  'Grip slipped, elbow twinged — kept on this set.': 'Хват поехал, локоть кольнул — останется у этого подхода.',
   'New in this workout': 'Новое в этой тренировке',
   'Add it to “{0}”': 'Записать в «{0}»',
   'Add them to “{0}”': 'Записать их в «{0}»',
