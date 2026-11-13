@@ -17,6 +17,7 @@ import { strengthExerciseRowsForMuscle } from '../lib/strength-exercises.js'
 import { fatigueStateOf } from '../lib/recovery-view.js'
 import { e1rmSeries, best1RM } from '../lib/onerm.js'
 import { StrengthLevelsCard } from '../components/StrengthLevel.jsx'
+import { WeeklySetsCard } from '../components/WeeklySets.jsx'
 import { MonthStatsCard } from '../components/YearReview.jsx'
 import Rewards, { MedalGallery, medalPreviewOn } from '../components/Medals.jsx'
 import {
@@ -468,6 +469,7 @@ export default function Stats() {
     </div>
 
     {workouts.length > 0 && <MuscleBalance S={S} />}
+    <WeeklySetsCard />
     <StrengthLevelsCard S={S} onOpen={id => exerciseDetailSheet(EXIDX[id] || { id })} />
     <MonthStatsCard />
     {hasEffort(S) && <EffortCard S={S} />}

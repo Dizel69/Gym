@@ -21,6 +21,7 @@ import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
 import { reviewYears, yearReview } from '../lib/year-review.js'
 import { yearReviewSheet } from '../components/YearReview.jsx'
+import { muscleTargetsSheet } from '../components/WeeklySets.jsx'
 
 function YearArchive({ S }) {
   const years = reviewYears(S)
@@ -267,6 +268,12 @@ export default function Settings() {
         <Segmented className="seg-inline"
           options={[{ value: MONDAY, label: t('Monday') }, { value: SUNDAY, label: t('Sunday') }]}
           value={weekStartOf(S)} onChange={v => update(s => { s.weekStart = v })} />
+      </Row>
+      <Row icon="figureStrength" iconTint="var(--teal)" title={t('Weekly sets per muscle')}
+        subtitle={t('The range each muscle aims for this week.')} accessory="chevron" onClick={muscleTargetsSheet} />
+      <Row icon="figureStrength" iconTint="var(--green)" title={t('Weekly sets on Home')}
+        subtitle={t('One line: the muscle furthest from its range.')}>
+        <Switch checked={S.homeMuscleSets === true} onChange={v => update(s => { s.homeMuscleSets = v })} />
       </Row>
       {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
       <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}

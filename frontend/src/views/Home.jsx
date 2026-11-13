@@ -15,6 +15,7 @@ import { readingCount } from '../lib/weigh-ins.js'
 import { MEASUREMENT_FIELDS, measurementSeries, measurementUnit, measurementUnitLabel } from '../lib/measurements.js'
 import { measurementGuideSheet } from '../components/MeasureGuide.jsx'
 import { YearHomeCard } from '../components/YearReview.jsx'
+import { WeeklySetsHomeLine } from '../components/WeeklySets.jsx'
 import MonthGoals from '../components/MonthGoals.jsx'
 import { FlameHat, HolidayBanner } from '../components/HolidayDecor.jsx'
 
@@ -233,5 +234,7 @@ export default function Home() {
         <Icon name="calendar" className="chev" style={{ fontSize: 20 }} />
       </div>
     </div>
+
+    {S.homeMuscleSets === true && <WeeklySetsHomeLine S={S} onOpen={() => nav('/stats')} />}
   </div>
 }

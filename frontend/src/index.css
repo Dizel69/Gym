@@ -1548,6 +1548,22 @@ body.chips-dragging *{cursor:inherit}
 .goal-bar{height:6px;margin-top:5px;border-radius:99px;background:var(--surface-2);overflow:hidden}
 .goal-bar i{display:block;height:100%;border-radius:99px;background:var(--acc)}
 .goal-bar i.done{background:var(--green)}
+.wset-row{display:grid;grid-template-columns:minmax(0,1fr) 72px auto;align-items:center;gap:8px;padding:6px 0}
+.wset-row+.wset-row{border-top:var(--hair) solid var(--sep)}
+.wset-row .nm{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wset-track{position:relative;height:8px;border-radius:4px;background:var(--surface-2)}
+.wset-track .fill{position:absolute;top:0;bottom:0;left:0;border-radius:4px;background:var(--label-2)}
+.wset-row.in .fill{background:var(--green)}
+.wset-row.above .fill{background:var(--orange)}
+.wset-track .mark{position:absolute;top:-2px;bottom:-2px;width:2px;margin-left:-1px;border-radius:1px;background:var(--label)}
+.wset-num{font-size:13px;font-variant-numeric:tabular-nums;color:var(--label-2);white-space:nowrap}
+.wset-num b{color:var(--label);font-weight:600}
+button.wsets-home{display:flex;align-items:center;gap:8px;width:100%;border:0;font:inherit;text-align:left;color:inherit;cursor:pointer}
+.wsets-edit{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0}
+.wsets-edit+.wsets-edit{border-top:var(--hair) solid var(--sep)}
+.wsets-edit-n{font-size:15px;min-width:0}
+.wsets-edit-r{display:flex;align-items:center;gap:6px;flex:none}
+.wsets-edit-r .stp{--num:36px}
 .rewards{margin-top:12px;cursor:pointer}
 .rewards-top{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
 .rewards-shelf{display:flex;flex-wrap:wrap;gap:12px 10px;margin-top:4px}
