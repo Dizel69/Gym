@@ -133,7 +133,7 @@ describe('custom exercise target (QA C10)', () => {
     seed(ex)
     customExSheet(EXIDX[ex.id])
     const form = renderTop()
-    pickMuscles(form, 'Primary muscle groups', ['Hamstrings', 'Chest', 'Chest', 'Glutes'])
+    pickMuscles(form, 'Primary muscle groups', ['Hamstrings', 'Mid chest', 'Mid chest', 'Glutes'])
     click(form, 'button', 'Save')
     const c = S().customEx[0]
     expect(c.primaries).toEqual(['trapezius', 'gluteal'])

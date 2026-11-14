@@ -246,7 +246,7 @@ describe('Stats muscle recovery view runtime', () => {
     expectPressed(balanceRangeButton('30d'))
     expect(buttonWithText(muscleCard(), 'Hard')).toBeTruthy()
     expect(lastMap().selected).toBe('chest')
-    expect(lastMap().load.chest).toBe(7)
+    for (const head of ['upper-chest', 'mid-chest', 'lower-chest']) expect(lastMap().load[head]).toBe(7)
   })
 
   it('updates the rendered Fatigue map and Balance window on the real 60-second interval', async () => {
@@ -256,13 +256,13 @@ describe('Stats muscle recovery view runtime', () => {
     await click(muscleCard().querySelector('[data-muscle="chest"]'))
 
     const mountsBeforeTick = mocks.mapMounts
-    const beforeTick = lastMap().load.chest
+    const beforeTick = lastMap().load['mid-chest']
     expect(fatigueStateOf(beforeTick)).toBe(FATIGUE_STATES.FATIGUED)
     expect(container.textContent).toContain('Fatigued')
 
     await tick(60000)
 
-    const afterTick = lastMap().load.chest
+    const afterTick = lastMap().load['mid-chest']
     expect(mocks.mapMounts).toBe(mountsBeforeTick)
     expect(afterTick).toBeLessThan(beforeTick)
     expect(fatigueStateOf(afterTick)).toBe(FATIGUE_STATES.RECOVERING)
@@ -271,7 +271,7 @@ describe('Stats muscle recovery view runtime', () => {
     await click(viewButton('Strength'))
     expect(lastMap().load.quadriceps).toBeLessThan(1)
     await click(viewButton('Muscle balance'))
-    expect(lastMap().load.chest).toBe(6)
+    for (const head of ['upper-chest', 'mid-chest', 'lower-chest']) expect(lastMap().load[head]).toBe(6)
   })
 
   it('derives a pound-profile bodyweight in kg and passes it into the rendered Fatigue map', async () => {
