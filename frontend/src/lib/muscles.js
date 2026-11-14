@@ -14,8 +14,10 @@ import { scheduleFor } from './week-cycle.js'
 
 // The muscles a map can shade, in head-to-toe order — also the order of any list
 // built from them, so "what am I neglecting" reads top-down like a body.
+export const CHEST_HEADS = ['upper-chest', 'mid-chest', 'lower-chest']
+
 export const MUSCLES = [
-  'trapezius', 'front-deltoid', 'side-deltoid', 'rear-deltoid', 'chest', 'upper-back', 'serratus',
+  'trapezius', 'front-deltoid', 'side-deltoid', 'rear-deltoid', ...CHEST_HEADS, 'upper-back', 'serratus',
   'biceps', 'triceps', 'forearm',
   'abs', 'obliques', 'lower-back',
   'gluteal', 'quadriceps', 'hamstring', 'adductors', 'hip-flexors',
@@ -25,7 +27,11 @@ export const MUSCLES = [
 // A picked list in the map's own order rather than the order the chips were tapped in — two
 // people building the same exercise get the same exercise. Unknown names keep their place at the end.
 export const inMuscleOrder = list => {
-  const at = m => { const i = MUSCLES.indexOf(m); return i < 0 ? MUSCLES.length : i }
+  const at = m => {
+    if (m === 'chest') return MUSCLES.indexOf('upper-chest')
+    const i = MUSCLES.indexOf(m)
+    return i < 0 ? MUSCLES.length : i
+  }
   return [...(list || [])].sort((a, b) => at(a) - at(b))
 }
 
@@ -37,7 +43,8 @@ export const INERT = ['head', 'hair', 'neck', 'hands', 'feet', 'knees', 'ankles'
 // that shows it capitalises with CSS — a capitalised key here rendered English everywhere.
 export const MUSCLE_NAME = {
   trapezius: 'Traps', 'front-deltoid': 'Front delts', 'side-deltoid': 'Side delts', 'rear-deltoid': 'Rear delts',
-  deltoids: 'Shoulders', chest: 'Chest', 'upper-back': 'Upper back',
+  deltoids: 'Shoulders', chest: 'Chest', 'upper-chest': 'Upper chest', 'mid-chest': 'Mid chest', 'lower-chest': 'Lower chest',
+  'upper-back': 'Upper back',
   serratus: 'Serratus', biceps: 'Biceps', triceps: 'Triceps', forearm: 'Forearms',
   abs: 'Abs', obliques: 'Obliques', 'lower-back': 'Lower back', gluteal: 'Glutes',
   quadriceps: 'Quads', hamstring: 'Hamstrings', adductors: 'Adductors',
@@ -47,7 +54,7 @@ export const MUSCLE_NAME = {
 // Every spelling that occurs in the dataset's `tg` and `sm` fields. null = not drawable.
 const ALIAS = {
   // primaries
-  abs: 'abs', pectorals: 'chest', biceps: 'biceps', glutes: 'gluteal',
+  abs: 'abs', biceps: 'biceps', glutes: 'gluteal',
   triceps: 'triceps', 'upper back': 'upper-back', lats: 'upper-back', calves: 'calves',
   quads: 'quadriceps', forearms: 'forearm', hamstrings: 'hamstring', spine: 'lower-back',
   traps: 'trapezius', adductors: 'adductors', 'serratus anterior': 'serratus',
@@ -60,7 +67,7 @@ const ALIAS = {
   'rear deltoids': 'rear-deltoid', 'rear delts': 'rear-deltoid', 'posterior deltoid': 'rear-deltoid',
   shoulders: 'front-deltoid', deltoids: 'front-deltoid', delts: 'front-deltoid',
   'rotator cuff': 'rear-deltoid', quadriceps: 'quadriceps', core: 'abs', abdominals: 'abs',
-  'lower abs': 'abs', chest: 'chest', 'upper chest': 'chest', 'hip flexors': 'hip-flexors',
+  'lower abs': 'abs', 'upper chest': 'upper-chest', 'hip flexors': 'hip-flexors',
   obliques: 'obliques', 'lower back': 'lower-back', rhomboids: 'upper-back',
   trapezius: 'trapezius', back: 'upper-back', 'latissimus dorsi': 'upper-back',
   // The shin outline stays on the drawing and is painted with the calves.
@@ -75,7 +82,7 @@ const ALIAS = {
 // Custom exercises carry only a body part, so they fall back to it. Weights inside a
 // group sum to 1 — "upper legs" spreads over three muscles rather than counting triple.
 const BY_BODYPART = {
-  chest: { chest: 1 },
+  chest: { 'upper-chest': 1, 'mid-chest': 1, 'lower-chest': 1 },
   back: { 'upper-back': 0.75, 'lower-back': 0.25 },
   shoulders: { 'front-deltoid': 0.4, 'side-deltoid': 0.4, 'rear-deltoid': 0.2 },
   'upper arms': { biceps: 0.5, triceps: 0.5 },
@@ -84,7 +91,7 @@ const BY_BODYPART = {
   'upper legs': { quadriceps: 0.4, hamstring: 0.35, gluteal: 0.25 },
   'lower legs': { calves: 1 },
   neck: { trapezius: 1 },
-  'full body': { chest: 0.2, 'upper-back': 0.2, gluteal: 0.2, quadriceps: 0.2, hamstring: 0.1, abs: 0.1 },
+  'full body': { 'upper-chest': 0.2, 'mid-chest': 0.2, 'lower-chest': 0.2, 'upper-back': 0.2, gluteal: 0.2, quadriceps: 0.2, hamstring: 0.1, abs: 0.1 },
   cardio: {},
 }
 
@@ -100,6 +107,76 @@ function locomotionLegs(ex) {
 }
 
 const GENERIC_DELT = new Set(['delts', 'deltoid', 'deltoids', 'shoulders', 'shoulder'])
+const GENERIC_CHEST = new Set(['pectorals', 'chest', 'pecs', 'pectoralis'])
+
+export function isChestMuscleToken(name) {
+  const token = String(name || '').toLowerCase().trim()
+  return GENERIC_CHEST.has(token) || token === 'upper chest' || CHEST_HEADS.includes(token)
+}
+
+export function chestHeadsForTags(ex, minWeight = 0.35) {
+  const weights = musclesOf(ex)
+  return CHEST_HEADS.filter(slug => (weights[slug] || 0) >= minWeight)
+}
+
+function isOverheadPress(ex) {
+  const n = String(ex?.n || ex?.name || '').toLowerCase()
+  if (/\bbench\b|\bflye?\b|\bdip\b|\bpush[- ]?up\b|\bpullover\b|\bcrossover\b/.test(n)) return false
+  if (/\b(lateral raise|front raise|rear fly|reverse fly)\b/.test(n)) return false
+  const shoulder = ex?.bp === 'shoulders'
+    || /\b(shoulder press|overhead press|military press|arnold press)\b/.test(n)
+  if (!shoulder) return false
+  return /\b(press|military|arnold|push press|jerk)\b/.test(n)
+}
+
+/** Per-head multipliers (0…1) when a generic chest token is resolved from the exercise. */
+export function chestPortion(ex) {
+  const n = String(ex?.n || ex?.name || '').toLowerCase()
+
+  if (isOverheadPress(ex)) return { 'upper-chest': 1, 'mid-chest': 0, 'lower-chest': 0 }
+
+  if (/(decline push[- ]?up|feet[- ]elevated push[- ]?up|feet[- ]up push[- ]?up)\b/.test(n)
+      || (/\bpush[- ]?up\b/.test(n) && /\bdecline\b/.test(n) && !/\bincline\b/.test(n))) {
+    return { 'upper-chest': 1, 'mid-chest': 0.6, 'lower-chest': 0.35 }
+  }
+  if (/(incline push[- ]?up|hands[- ]elevated push[- ]?up)\b/.test(n)
+      || (/\bpush[- ]?up\b/.test(n) && /\bincline\b/.test(n))) {
+    return { 'lower-chest': 1, 'mid-chest': 0.6, 'upper-chest': 0.35 }
+  }
+  if (/low[- ]to[- ]high/.test(n) && /\b(fly|flye|crossover)\b/.test(n)) {
+    return { 'upper-chest': 1, 'mid-chest': 0.55, 'lower-chest': 0.25 }
+  }
+  if (/high[- ]to[- ]low/.test(n) && /\b(fly|flye|crossover)\b/.test(n)) {
+    return { 'lower-chest': 1, 'mid-chest': 0.55, 'upper-chest': 0.25 }
+  }
+  if (/\bdip\b/.test(n) || (/\bdecline\b/.test(n) && /\b(bench|press|fly|flye)\b/.test(n))) {
+    return { 'lower-chest': 1, 'mid-chest': 0.6, 'upper-chest': 0.3 }
+  }
+  if (/\bincline\b/.test(n) && /\b(bench|press|fly|flye)\b/.test(n)) {
+    return { 'upper-chest': 1, 'mid-chest': 0.6, 'lower-chest': 0.3 }
+  }
+  if (/\bguillotine\b/.test(n) || /reverse[- ]grip bench/.test(n) || /\blandmine press\b/.test(n)) {
+    return { 'upper-chest': 1, 'mid-chest': 0.6, 'lower-chest': 0.3 }
+  }
+  return { 'upper-chest': 1, 'mid-chest': 1, 'lower-chest': 1 }
+}
+
+function applyChestLoad(out, token, w, ex) {
+  const t = String(token || '').toLowerCase().trim()
+  if (t === 'upper chest' || t === 'upper-chest') {
+    out['upper-chest'] = Math.max(out['upper-chest'] || 0, w)
+    return
+  }
+  if (CHEST_HEADS.includes(t)) {
+    out[t] = Math.max(out[t] || 0, w)
+    return
+  }
+  const portion = chestPortion(ex)
+  for (const head of CHEST_HEADS) {
+    const mult = portion[head] || 0
+    if (mult > 0) out[head] = Math.max(out[head] || 0, w * mult)
+  }
+}
 
 // The catalogue calls every shoulder "deltoids". The head comes from the name:
 // a press loads the front and the side, a lateral raise only the side, a rear
@@ -123,6 +200,11 @@ function slugsOf(name, ex) {
   const token = String(name || '').toLowerCase().trim()
   if (MUSCLES.includes(token)) return [token]
   if (GENERIC_DELT.has(token)) return deltHeads(ex)
+  if (GENERIC_CHEST.has(token)) {
+    const portion = chestPortion(ex)
+    return CHEST_HEADS.filter(head => (portion[head] || 0) > 0)
+  }
+  if (token === 'upper chest') return ['upper-chest']
   const slug = ALIAS[token]
   return slug ? [slug] : []
 }
@@ -194,6 +276,7 @@ export function hasExplicitMuscleMetadata(entry) {
 function canonicalMuscle(value) {
   const name = String(value || '').toLowerCase().trim()
   if (MUSCLES.includes(name)) return name
+  if (GENERIC_CHEST.has(name) || name === 'upper chest') return 'mid-chest'
   return ALIAS[name] || null
 }
 
@@ -242,6 +325,12 @@ export function musclesOf(ex) {
     const snapshot = {}
     const weights = { ...ex.muscleWeights }
     if (weights.deltoids != null && weights['front-deltoid'] == null) weights['front-deltoid'] = weights.deltoids
+    if (weights.chest != null && weights['upper-chest'] == null) {
+      const legacy = Number(weights.chest)
+      if (Number.isFinite(legacy) && legacy > 0) {
+        for (const head of CHEST_HEADS) weights[head] = legacy
+      }
+    }
     // Older snapshots stored the shin on its own. That load belongs to the calves now.
     if (weights.tibialis != null) {
       const shin = Number(weights.tibialis)
@@ -255,6 +344,11 @@ export function musclesOf(ex) {
   }
   const out = {}
   const add = (name, w) => {
+    const token = String(name || '').toLowerCase().trim()
+    if (GENERIC_CHEST.has(token) || token === 'upper chest') {
+      applyChestLoad(out, token, w, ex)
+      return
+    }
     for (const slug of slugsOf(name, ex)) out[slug] = Math.max(out[slug] || 0, w)
   }
   const parts = explicitPartsOf(ex)
@@ -274,6 +368,9 @@ export function musclesOf(ex) {
   if (ex.bp === 'cardio') {
     const legs = locomotionLegs(ex)
     if (legs) for (const [slug, weight] of Object.entries(legs)) out[slug] = Math.max(out[slug] || 0, weight)
+  }
+  if (isOverheadPress(ex) && !CHEST_HEADS.some(head => (out[head] || 0) > 0)) {
+    out['upper-chest'] = Math.max(out['upper-chest'] || 0, SECONDARY)
   }
   return out
 }

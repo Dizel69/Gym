@@ -3,6 +3,7 @@ import { MUSCLES, INERT, MUSCLE_NAME, levelsOf } from '../lib/muscles.js'
 import { t } from '../lib/i18n.js'
 import { Kokoshnik, Pilotka, Pumpkin, SantaHat, StrawHat, Ushanka, Wreath } from './holiday-art.jsx'
 import { useHoliday } from './HolidayDecor.jsx'
+import { chestDepartmentsFor, CHEST_DEPARTMENTS } from '../lib/chest-regions.js'
 
 // Front and back views of a body, each muscle shaded by how hard it was worked.
 //
@@ -33,7 +34,9 @@ const PAINT_WITH = { tibialis: 'calves' }
 
 function regionsOf(view) {
   const extra = Object.keys(PAINT_WITH).filter(slug => view.p?.[slug]?.length)
-  return [...MUSCLES, ...extra]
+  const splitChest = view.p?.chest?.length
+  const muscles = splitChest ? MUSCLES.filter(slug => slug !== 'chest') : MUSCLES
+  return [...muscles, ...extra]
 }
 
 // Where the skull sits in each of the four views: centre x, top of the head, width.
@@ -89,11 +92,18 @@ function View({ view, levels, onMuscle, selected, wear, extra = 0 }) {
     if (event.key === ' ') event.preventDefault()
     onMuscle(muscle)
   }
+  const chestPecs = chestDepartmentsFor(view)
   const clips = []
   regions.forEach(slug => (view.c?.[slug] || []).forEach((box, i) => {
     const [x, y, w, h] = box
     clips.push(<clipPath id={`${uid}-${slug}-${i}`} key={slug + i}><rect x={x} y={y} width={w} height={h} /></clipPath>)
   }))
+  chestPecs.forEach((pec, pi) => {
+    clips.push(<clipPath id={`${uid}-chest-${pi}-shape`} key={`chest-shape-${pi}`}><path d={pec.outline} /></clipPath>)
+    CHEST_DEPARTMENTS.forEach(dept => {
+      clips.push(<clipPath id={`${uid}-chest-${pi}-${dept}`} key={`chest-${pi}-${dept}`}><path d={pec.clips[dept]} /></clipPath>)
+    })
+  })
   const hat = wear && HATS[wear]
   const box = hat && hatBox(view.vb, wear)
   const hideHead = !!(box && hat.hides)
@@ -104,6 +114,33 @@ function View({ view, levels, onMuscle, selected, wear, extra = 0 }) {
       {clips.length ? <defs>{clips}</defs> : null}
       {INERT.map(slug => (view.p[slug] || []).map((d, i) =>
         <path key={slug + i} className={'bm-sil' + ((slug === 'head' && hideHead) || (slug === 'hair' && hideHair) ? ' bm-gone' : '')} d={d} />))}
+      {chestPecs.map((pec, pi) => CHEST_DEPARTMENTS.map(dept => {
+        const title = t(MUSCLE_NAME[dept])
+        return (
+          <path
+            key={`chest-${pi}-${dept}`}
+            data-region={dept}
+            className={'bm-m bm-chest-part l' + (levels[dept] || 0) + (selected === dept ? ' sel' : '')}
+            d={pec.outline}
+            clipPath={`url(#${uid}-chest-${pi}-${dept})`}
+            onClick={onMuscle ? () => onMuscle(dept) : undefined}
+            onKeyDown={onMuscle ? event => activate(event, dept) : undefined}
+            role={onMuscle ? 'button' : undefined}
+            tabIndex={onMuscle ? 0 : undefined}
+            aria-label={onMuscle ? title : undefined}
+            aria-pressed={onMuscle ? selected === dept : undefined}
+          >
+            <title>{title}</title>
+          </path>
+        )
+      }))}
+      {chestPecs.map((pec, pi) => (
+        <g key={`chest-art-${pi}`} className="bm-chest-art">
+          <path className="bm-chest-outline" d={pec.outline} pointerEvents="none" />
+          <path className="bm-chest-seam" d={pec.seams.upper} clipPath={`url(#${uid}-chest-${pi}-shape)`} pointerEvents="none" />
+          <path className="bm-chest-seam" d={pec.seams.lower} clipPath={`url(#${uid}-chest-${pi}-shape)`} pointerEvents="none" />
+        </g>
+      ))}
       {regions.map(slug => (view.p[slug] || []).map((d, i) => {
         const muscle = PAINT_WITH[slug] || slug
         return (

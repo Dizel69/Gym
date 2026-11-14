@@ -17,7 +17,8 @@ describe('weekly sets per muscle', () => {
       { id: 'warm', d: '2026-10-27', start: 1, entries: [{ id: BENCH, sets: [{ w: 40, r: 5, done: true, phase: 'warmup' }, { w: 60, r: 8, done: false }] }] },
     ] }
     const rows = Object.fromEntries(weeklyMuscleSets(S, TODAY).map(r => [r.slug, r]))
-    expect(rows.chest).toMatchObject({ sets: 4, lo: 10, hi: 20, status: 'below' })
+    expect(rows.chest).toMatchObject({ sets: 4, lo: 10, hi: 20, status: 'below', name: 'Chest' })
+    expect(rows['upper-chest']).toBeUndefined()
     expect(rows.triceps.sets).toBeCloseTo(1.6)
     expect(rows.quadriceps.sets).toBe(3)
     expect(rows['front-deltoid'].sets).toBeCloseTo(1.6)

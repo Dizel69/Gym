@@ -18,8 +18,8 @@ const STRENGTH_BANDS = [
 
 describe('production recovery view selectors', () => {
   it('preserves the relative balance scale when no thresholds are supplied', () => {
-    const levels = levelsOf({ chest: 10, biceps: 5 })
-    expect(levels.chest).toBe(4)
+    const levels = levelsOf({ 'mid-chest': 10, biceps: 5 })
+    expect(levels['mid-chest']).toBe(4)
     expect(levels.biceps).toBe(2)
   })
 
@@ -32,18 +32,18 @@ describe('production recovery view selectors', () => {
 
   it('renders fatigue bands on a fixed absolute scale rather than relative to the map maximum', () => {
     const levels = levelsOf({
-      chest: 0.25,
+      'mid-chest': 0.25,
       biceps: 0.6,
       triceps: 0.1,
     }, FATIGUE_BANDS)
-    expect(levels.chest).toBe(2)
+    expect(levels['mid-chest']).toBe(2)
     expect(levels.biceps).toBe(0)
     expect(levels.triceps).toBe(4)
   })
 
   it('renders strength on fixed .5-to-1 bands with full retention at l4', () => {
-    const levels = levelsOf({ chest: 0.9, biceps: 1, triceps: 0.5 }, STRENGTH_BANDS)
-    expect(levels.chest).toBe(3)
+    const levels = levelsOf({ 'mid-chest': 0.9, biceps: 1, triceps: 0.5 }, STRENGTH_BANDS)
+    expect(levels['mid-chest']).toBe(3)
     expect(levels.biceps).toBe(4)
     expect(levels.triceps).toBe(0)
   })
@@ -51,8 +51,8 @@ describe('production recovery view selectors', () => {
   it('keeps selectors tied to the same render-time clock', () => {
     const now = Date.UTC(2026, 0, 22)
     const workout = { start: now - 15 * 86400000, d: '2026-01-07', entries: [] }
-    expect(strengthOf([workout], now).chest).toBe(0.5)
-    expect(fatigueOf([workout], now).chest).toBe(0)
-    expect(strengthOf([workout], now + 7 * 86400000).chest).toBe(0.5)
+    expect(strengthOf([workout], now)['mid-chest']).toBe(0.5)
+    expect(fatigueOf([workout], now)['mid-chest']).toBe(0)
+    expect(strengthOf([workout], now + 7 * 86400000)['mid-chest']).toBe(0.5)
   })
 })

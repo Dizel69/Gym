@@ -39,7 +39,7 @@ describe('extra kettlebell exercises', () => {
 
   test('shades the muscles drawn in red on the diagram', () => {
     const of = id => musclesOf(CATALOGUE.find(exercise => exercise.id === id))
-    expect(of('kb-punch').chest).toBeGreaterThan(0)
+    expect(of('kb-punch')['mid-chest']).toBeGreaterThan(0)
     expect(of('kb-punch')['front-deltoid']).toBeGreaterThan(0)
     expect(of('kb-punch').triceps).toBeGreaterThan(0)
     expect(of('kb-punch').obliques).toBeGreaterThan(0)

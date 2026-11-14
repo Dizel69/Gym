@@ -302,7 +302,7 @@ describe('causal fatigue reference', () => {
     const workouts = [-20, -10, 0].map(days => loadedWorkout(base + days * DAY, 100))
     const observed = Array.from(
       { length: 31 * 24 + 1 },
-      (_, hour) => fatigueOf(workouts, base + hour * HOUR).chest,
+      (_, hour) => fatigueOf(workouts, base + hour * HOUR)['mid-chest'],
     )
 
     expect(observed[0]).toBeGreaterThan(0.5)
@@ -314,12 +314,12 @@ describe('causal fatigue reference', () => {
 
   it('ignores imports older than the scan, including their heavier 1RM data', () => {
     const today = loadedWorkout(NOW, 100, 5)
-    const baseline = fatigueOf([today], NOW).chest
+    const baseline = fatigueOf([today], NOW)['mid-chest']
     const heavyImport = loadedWorkout(NOW - 90 * DAY, 140, 10)
     const highVolumeImport = loadedWorkout(NOW - 90 * DAY, 100, 20)
 
-    expect(fatigueOf([heavyImport, today], NOW).chest).toBe(baseline)
-    expect(fatigueOf([highVolumeImport, today], NOW).chest).toBe(baseline)
+    expect(fatigueOf([heavyImport, today], NOW)['mid-chest']).toBe(baseline)
+    expect(fatigueOf([highVolumeImport, today], NOW)['mid-chest']).toBe(baseline)
   })
 
   it('never increases fatigue when any one workout is deleted', () => {
@@ -340,8 +340,8 @@ describe('causal fatigue reference', () => {
 
   it('rates a lighter current week below repeating the established load', () => {
     const prior = [-21, -14, -7].map(days => loadedWorkout(NOW + days * DAY, 100))
-    const lighter = fatigueOf([...prior, loadedWorkout(NOW, 50)], NOW).chest
-    const repeated = fatigueOf([...prior, loadedWorkout(NOW, 100)], NOW).chest
+    const lighter = fatigueOf([...prior, loadedWorkout(NOW, 50)], NOW)['mid-chest']
+    const repeated = fatigueOf([...prior, loadedWorkout(NOW, 100)], NOW)['mid-chest']
 
     expect(lighter).toBeLessThan(repeated)
   })
@@ -441,10 +441,10 @@ describe('warm-up flag in strength and fatigue', () => {
     const workouts = [oldWork, warm]
     const strength = strengthOf(workouts, now)
     // the strength edge is 20 days old: the fresh warm-up must NOT be the latest training event
-    expect(strength.chest).toBeLessThan(1)
+    expect(strength['mid-chest']).toBeLessThan(1)
     // but the warm-up still contributes to the fatigue stimulus (real mechanical work)
     const fatigue = fatigueOf(workouts, now)
-    expect(fatigue.chest).toBeGreaterThan(0)
+    expect(fatigue['mid-chest']).toBeGreaterThan(0)
   })
 })
 
@@ -560,8 +560,8 @@ describe('canonical loads and configured bodyweight', () => {
     registerCustom([{ id, n: 'Custom bodyweight', bp: 'chest', tg: 'chest', eq: 'custom', sm: [] }])
     try {
       const workout = stampedWorkout({ id, start: NOW, unit: 'kg', weight: 0, bw: 80, target: { bodyweight: true } })
-      expect(fatigueOf([workout], NOW, { unit: 'kg' }).chest).toBeGreaterThan(0)
-      expect(strengthOf([workout], NOW, { unit: 'kg' }).chest).toBe(1)
+      expect(fatigueOf([workout], NOW, { unit: 'kg' })['mid-chest']).toBeGreaterThan(0)
+      expect(strengthOf([workout], NOW, { unit: 'kg' })['mid-chest']).toBe(1)
     } finally {
       registerCustom([])
     }
@@ -587,8 +587,8 @@ describe('canonical loads and configured bodyweight', () => {
         { done: true, w: 0, r: 20 },
         { done: true, w: 0, r: 20 },
       ])
-      expect(fatigueOf([workout], NOW).chest).toBeCloseTo(1 - Math.exp(-2 / 3), 10)
-      expect(strengthOf([workout], NOW).chest).toBe(1)
+      expect(fatigueOf([workout], NOW)['mid-chest']).toBeCloseTo(1 - Math.exp(-2 / 3), 10)
+      expect(strengthOf([workout], NOW)['mid-chest']).toBe(1)
     } finally {
       registerCustom([])
     }

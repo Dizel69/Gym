@@ -6,7 +6,7 @@
 // itself rule a complex out.
 
 import { EXIDX } from './exercises.js'
-import { MUSCLES, musclesOf } from './muscles.js'
+import { MUSCLES, musclesOf, CHEST_HEADS } from './muscles.js'
 
 export const FATIGUE_AVOID = 0.5
 const PRIMARY = 0.5
@@ -14,7 +14,7 @@ const PRIMARY = 0.5
 export const REGIONS = [
   { id: 'legs', name: 'Legs', muscles: ['gluteal', 'quadriceps', 'hamstring', 'adductors', 'hip-flexors', 'calves'] },
   { id: 'back', name: 'the back', muscles: ['trapezius', 'upper-back', 'lower-back'] },
-  { id: 'chest', name: 'Chest', muscles: ['chest', 'serratus'] },
+  { id: 'chest', name: 'Chest', muscles: ['upper-chest', 'mid-chest', 'lower-chest', 'serratus'] },
   { id: 'shoulders', name: 'Shoulders', muscles: ['front-deltoid', 'side-deltoid', 'rear-deltoid'] },
   { id: 'arms', name: 'Arms', muscles: ['biceps', 'triceps', 'forearm'] },
   { id: 'core', name: 'Core', muscles: ['abs', 'obliques'] },
@@ -22,6 +22,16 @@ export const REGIONS = [
 
 function exerciseOf(item) {
   return EXIDX[item?.id] || item?.ex || item
+}
+
+function collapseChest(load) {
+  const peak = Math.max(...CHEST_HEADS.map(slug => load[slug] || 0), 0)
+  const out = {}
+  for (const [slug, weight] of Object.entries(load)) {
+    if (!CHEST_HEADS.includes(slug)) out[slug] = weight
+  }
+  if (peak > 0) out['mid-chest'] = peak
+  return out
 }
 
 export function routineLoad(routine) {
@@ -32,7 +42,7 @@ export function routineLoad(routine) {
       load[slug] = Math.max(load[slug] || 0, weight)
     }
   }
-  return load
+  return collapseChest(load)
 }
 
 function peak(fatigue, muscles) {

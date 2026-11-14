@@ -77,7 +77,7 @@ describe('strengthExerciseRows', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].est).toBe(102) // 85x6, not 80x8, not the 40x8 warm-up
     expect(rows[0].estDate).toBe('2026-08-05')
-    expect(rows[0].primary).toBe('chest')
+    expect(rows[0].primary).toBe('mid-chest')
   })
 
   it('resolves real exercise names from the catalogue even when entries lack a name snapshot', () => {
@@ -102,7 +102,7 @@ describe('strengthExerciseRows', () => {
     const S = unitState([workout(3, [deleted])])
     const rows = strengthExerciseRows(S, NOW)
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ id: 'deleted-custom', name: 'Deleted custom', primary: 'chest', est: 101.3 })
+    expect(rows[0]).toMatchObject({ id: 'deleted-custom', name: 'Deleted custom', primary: 'mid-chest', est: 101.3 })
     expect(strengthExerciseRowsForMuscle(S, NOW, 'chest')[0].name).toBe('Deleted custom')
   })
 
@@ -140,7 +140,7 @@ describe('strengthExerciseRowsForMuscle', () => {
     const benchRow = rows.find(r => r.id === 'bench')
     const flyRow = rows.find(r => r.id === 'fly')
     expect(benchRow.weight).toBe(1)
-    expect(benchRow.primary).toBe('chest')
+    expect(benchRow.primary).toBe('mid-chest')
     expect(flyRow.weight).toBe(0.4)
     expect(flyRow.primary).toBe('front-deltoid')
     expect(flyRow.decay).toBe(1) // chest is at full retention
@@ -154,7 +154,7 @@ describe('strengthExerciseRowsForMuscle', () => {
     // bench trains triceps secondarily (0.4), so it appears under the tapped triceps -
     // but the decay is bench's own (3 days ago -> full), not triceps' stale muscle value.
     expect(benchRow.weight).toBe(0.4)
-    expect(benchRow.primary).toBe('chest')
+    expect(benchRow.primary).toBe('mid-chest')
     expect(benchRow.decay).toBe(1)
     expect(benchRow.current).toBe(102)
   })
@@ -167,8 +167,8 @@ describe('strengthExerciseRowsForMuscle', () => {
 
 describe('primaryMuscleOf', () => {
   it('prefers the catalogue, then the logged snapshot, and handles missing metadata', () => {
-    expect(primaryMuscleOf({ id: 'bench', muscleWeights: {} }).slug).toBe('chest') // catalogue wins
-    expect(primaryMuscleOf({ muscleWeights: { chest: 1, triceps: 0.4 } }).slug).toBe('chest') // snapshot fallback
+    expect(primaryMuscleOf({ id: 'bench', muscleWeights: {} }).slug).toBe('mid-chest') // catalogue wins
+    expect(primaryMuscleOf({ muscleWeights: { chest: 1, triceps: 0.4 } }).slug).toBe('mid-chest') // snapshot fallback
     expect(primaryMuscleOf({ tg: 'back', mg: 'biceps' }).slug).toBe('upper-back') // canonicalised
     expect(primaryMuscleOf({})).toBeNull()
     expect(primaryMuscleOf(null)).toBeNull()

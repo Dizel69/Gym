@@ -9,12 +9,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let container
 let root
 
-// BodyMap fetches its ~90 KB of geometry with a dynamic import on first render, and the
-// waitFor below allows one second for it. That is ample once the module is in the ESM
-// registry and not always ample when it is not: on a loaded CI runner the first map render
-// in this file paid the cold import and timed out, while every later test passed on the
-// component's warm CACHE. Import it here so the wait covers rendering, not module loading,
-// and the file stops depending on how fast the machine is.
 beforeAll(() => import('../lib/body-paths.js'))
 
 beforeEach(() => {
@@ -30,10 +24,10 @@ afterEach(() => {
 
 async function renderMap(props = {}) {
   await act(async () => {
-    root.render(<BodyMap load={{ chest: 2 }} {...props} />)
+    root.render(<BodyMap load={{ 'upper-chest': 4, 'mid-chest': 0, 'lower-chest': 0 }} {...props} />)
   })
   await vi.waitFor(() => expect(container.querySelectorAll('.bm-v')).toHaveLength(2))
-  return container.querySelector('.bm-m[aria-label="Chest"]')
+  return container
 }
 
 describe('BodyMap interaction semantics', () => {
@@ -44,23 +38,57 @@ describe('BodyMap interaction semantics', () => {
   })
 
   it('exposes interactive muscles as translated pressed buttons inside groups', async () => {
-    const path = await renderMap({ selected: 'chest', onMuscle: vi.fn() })
+    const host = await renderMap({ selected: 'upper-chest', onMuscle: vi.fn() })
+    const path = host.querySelector('[data-region="upper-chest"]')
     expect(container.querySelectorAll('svg[role="group"]')).toHaveLength(2)
     expect(path).toBeTruthy()
     expect(path.tabIndex).toBe(0)
     expect(path.getAttribute('aria-pressed')).toBe('true')
   })
 
-  it.each(['Enter', ' '])('activates a muscle once with %s', async key => {
+  it.each(['Enter', ' '])('activates upper chest once with %s', async key => {
     const onMuscle = vi.fn()
-    const path = await renderMap({ onMuscle })
+    const host = await renderMap({ onMuscle })
+    const path = host.querySelector('[data-region="upper-chest"]')
     const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
 
     act(() => path.dispatchEvent(event))
 
     expect(onMuscle).toHaveBeenCalledTimes(1)
-    expect(onMuscle).toHaveBeenCalledWith('chest')
+    expect(onMuscle).toHaveBeenCalledWith('upper-chest')
     expect(event.defaultPrevented).toBe(key === ' ')
+  })
+
+  it('paints only upper-chest at the requested load level on the front view', async () => {
+    const host = await renderMap({ load: { 'upper-chest': 4, 'mid-chest': 0, 'lower-chest': 0 } })
+    const front = host.querySelectorAll('.bm-v')[0]
+    const upper = [...front.querySelectorAll('[data-region="upper-chest"]')]
+    const mid = [...front.querySelectorAll('[data-region="mid-chest"]')]
+    const lower = [...front.querySelectorAll('[data-region="lower-chest"]')]
+    expect(upper.every(path => path.classList.contains('l4'))).toBe(true)
+    expect(mid.every(path => path.classList.contains('l0'))).toBe(true)
+    expect(lower.every(path => path.classList.contains('l0'))).toBe(true)
+  })
+
+  it('paints equal load on all chest departments at the same level', async () => {
+    const host = await renderMap({ load: { 'upper-chest': 3, 'mid-chest': 3, 'lower-chest': 3 } })
+    const front = host.querySelectorAll('.bm-v')[0]
+    const paths = [...front.querySelectorAll('[data-region$="-chest"]')]
+    expect(paths).toHaveLength(6)
+    const level = [...paths[0].classList].find(c => /^l\d$/.test(c))
+    expect(level).toBeTruthy()
+    expect(paths.every(path => path.classList.contains(level))).toBe(true)
+  })
+
+  it('draws chest departments on the front view only', async () => {
+    const host = await renderMap()
+    const [front, back] = host.querySelectorAll('.bm-v')
+    expect([...front.querySelectorAll('[data-region="upper-chest"]')]).toHaveLength(2)
+    expect([...front.querySelectorAll('[data-region="mid-chest"]')]).toHaveLength(2)
+    expect([...front.querySelectorAll('[data-region="lower-chest"]')]).toHaveLength(2)
+    expect(back.querySelector('[data-region="upper-chest"]')).toBeNull()
+    expect(back.querySelector('[data-region="mid-chest"]')).toBeNull()
+    expect(back.querySelector('[data-region="lower-chest"]')).toBeNull()
   })
 
   it('paints the shin outline with the calves and selects calves from it', async () => {

@@ -21,8 +21,8 @@ describe('compound-lift muscle metadata batch 1', () => {
       expect(duplicateFree(metadata.primaries), id).toBe(true)
       expect(duplicateFree(metadata.secondaries), id).toBe(true)
       expect(metadata.primaries.some(muscle => metadata.secondaries.includes(muscle)), id).toBe(false)
-      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
-      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
+      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids' || muscle === 'chest'), id).toBe(true)
+      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids' || muscle === 'chest'), id).toBe(true)
       const { secondaries, ...rest } = metadata
       expect(EXIDX[id]).toMatchObject(rest)
       const extra = EXIDX[id].secondaries.filter(m => !secondaries.includes(m))
@@ -43,11 +43,11 @@ describe('compound-lift muscle metadata batch 1', () => {
       secondaries: ['quadriceps', 'adductors', 'calves', 'abs', 'obliques']
     })
     expect(COMPOUND_LIFT_BATCH_1['0025']).toEqual({
-      bp: 'chest', primaries: ['chest'], secondaries: ['triceps', 'deltoids', 'biceps']
+      bp: 'chest', primaries: ['chest'], secondaries: ['triceps', 'deltoids', 'biceps'],
     })
     expect(COMPOUND_LIFT_BATCH_1['0091']).toEqual({
       bp: 'shoulders', primaries: ['deltoids'],
-      secondaries: ['chest', 'triceps', 'trapezius', 'serratus']
+      secondaries: ['chest', 'triceps', 'trapezius', 'serratus'],
     })
     expect(COMPOUND_LIFT_BATCH_1['0027']).toEqual({
       bp: 'back', primaries: ['upper-back'],
@@ -56,8 +56,8 @@ describe('compound-lift muscle metadata batch 1', () => {
     expect(COMPOUND_LIFT_BATCH_1['0652']).toEqual({
       bp: 'back', primaries: ['upper-back'], secondaries: ['biceps', 'deltoids', 'forearm']
     })
-    expect(musclesOf(EXDB.find(exercise => exercise.id === '0587'))).toMatchObject({ chest: 0.4 })
-    expect(musclesOf(EXIDX['0587'])).toMatchObject({ chest: 0.4 })
+    expect(musclesOf(EXDB.find(exercise => exercise.id === '0587'))).toMatchObject({ 'upper-chest': 0.4 })
+    expect(musclesOf(EXIDX['0587'])).toMatchObject({ 'upper-chest': 0.4 })
   })
 
   it('keeps torso bracing secondary and does not label the twisting press full body', () => {

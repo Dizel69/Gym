@@ -47,7 +47,7 @@ describe('recommendToday', () => {
   })
 
   it('prefers the complex that trains a muscle whose strength has faded', () => {
-    const strength = { chest: 0.5, quadriceps: 1, gluteal: 1, hamstring: 1 }
+    const strength = { 'mid-chest': 0.5, quadriceps: 1, gluteal: 1, hamstring: 1 }
     const advice = recommendToday({ routines: [LEGS, PUSH], fatigue: {}, strength })
     expect(advice.routineId).toBe('push')
   })

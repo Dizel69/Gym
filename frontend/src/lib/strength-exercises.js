@@ -8,7 +8,7 @@
 // logged snapshot (muscleWeights) for exercises no longer in the catalogue.
 import { best1RM } from './onerm.js'
 import { STRENGTH_FULL_MS, STRENGTH_HALF_LIFE_MS, STRENGTH_FLOOR, halfLifeDecay } from './recovery.js'
-import { musclesOf } from './muscles.js'
+import { musclesOf, CHEST_HEADS } from './muscles.js'
 import { EXIDX } from './exercises.js'
 import { isWarmupRow } from './workout-model.js'
 import { exerciseNameFor } from './i18n-core.js'
@@ -46,9 +46,14 @@ function snapshotWeights(entry) {
     ? (entry.muscleWeights || entry.muscleSnapshot?.muscleWeights)
     : null
   if (direct && typeof direct === 'object' && !Array.isArray(direct) && Object.keys(direct).length) {
-    return direct
+    return musclesOf({ muscleWeights: direct })
   }
   return musclesOf(entry)
+}
+
+function weightOnSlug(weights, slug) {
+  if (slug === 'chest') return Math.max(...CHEST_HEADS.map(h => weights[h] || 0), 0)
+  return weights[slug] || 0
 }
 
 // Highest-weight muscle of an exercise - used for the primary/secondary badge and the
@@ -57,7 +62,9 @@ export function primaryMuscleOf(entry) {
   const weights = snapshotWeights(entry)
   let best = null
   for (const [slug, weight] of Object.entries(weights)) {
-    if (!best || weight > best.weight) best = { slug, weight }
+  const better = !best || weight > best.weight
+    || (weight === best.weight && slug === 'mid-chest' && CHEST_HEADS.includes(best.slug))
+    if (better) best = { slug, weight }
   }
   return best
 }
@@ -121,7 +128,7 @@ export function strengthExerciseRowsForMuscle(S, now, slug) {
     for (const entry of workout.entries || []) {
       if (seen.has(entry.id)) continue
       const weights = snapshotWeights(entry)
-      const weight = weights[slug]
+      const weight = weightOnSlug(weights, slug)
       if (!weight) continue
       const best = best1RM(S, entry.id)
       if (!best) continue

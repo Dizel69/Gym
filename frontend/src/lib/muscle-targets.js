@@ -9,10 +9,12 @@
 // The starting ranges follow the hypertrophy landmarks the upstream card uses
 // (about 10–20 working sets a week for a big muscle). Shoulders are three muscles
 // here, so each head has its own starting range instead of one shared "deltoids"
-// number. A range you change is stored on S.muscleTargets; the suggested one is
-// not stored. Below the low end is room, not a failing grade. Past the high end
-// is more than the range.
-import { loadOfWorkouts, MUSCLE_NAME } from './muscles.js'
+// number. Chest stays one row: the diagram splits the pec, but a set is counted
+// once, at the busiest department, so a flat press does not fill the range three
+// times. A range you change is stored on S.muscleTargets; the suggested one is not
+// stored. Below the low end is room, not a failing grade. Past the high end is
+// more than the range.
+import { loadOfWorkouts, MUSCLE_NAME, CHEST_HEADS } from './muscles.js'
 import { weekKey, weekStartOf, todayISO } from './format.js'
 
 export const DEFAULT_TARGETS = {
@@ -39,7 +41,8 @@ export function targetOf(S, slug) {
     const lo = Math.round(Number(own[0])), hi = Math.round(Number(own[1]))
     if (Number.isFinite(lo) && Number.isFinite(hi) && lo >= 0 && hi >= lo && hi <= TARGET_MAX) return [lo, hi]
   }
-  return DEFAULT_TARGETS[slug] ? [...DEFAULT_TARGETS[slug]] : null
+  const suggested = DEFAULT_TARGETS[slug]
+  return suggested ? [...suggested] : null
 }
 
 /** 'below', 'in' or 'above' the range. */
@@ -59,7 +62,10 @@ export function weeklyMuscleSets(S, today = todayISO()) {
   const load = loadOfWorkouts(workouts)
   return TARGET_MUSCLES.map(slug => {
     const [lo, hi] = targetOf(S, slug)
-    const sets = roundSets(load[slug] || 0)
+    const raw = slug === 'chest'
+      ? Math.max(...CHEST_HEADS.map(head => load[head] || 0), 0)
+      : (load[slug] || 0)
+    const sets = roundSets(raw)
     return { slug, name: MUSCLE_NAME[slug], sets, lo, hi, status: statusOf(sets, [lo, hi]) }
   })
 }

@@ -32,8 +32,8 @@ describe('machine muscle metadata batch 2', () => {
       expect(duplicateFree(metadata.primaries), id).toBe(true)
       expect(duplicateFree(metadata.secondaries), id).toBe(true)
       expect(metadata.primaries.some(muscle => metadata.secondaries.includes(muscle)), id).toBe(false)
-      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
-      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids'), id).toBe(true)
+      expect(metadata.primaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids' || muscle === 'chest'), id).toBe(true)
+      expect(metadata.secondaries.every(muscle => MUSCLES.includes(muscle) || muscle === 'deltoids' || muscle === 'chest'), id).toBe(true)
       const { secondaries, ...rest } = metadata
       expect(EXIDX[id]).toMatchObject(rest)
       const extra = EXIDX[id].secondaries.filter(m => !secondaries.includes(m))
@@ -44,19 +44,19 @@ describe('machine muscle metadata batch 2', () => {
 
   it('maps the pec-deck family from the lever seated-fly template', () => {
     expectMapping('0596', {
-      bp: 'chest', primaries: ['chest'], secondaries: ['deltoids', 'biceps', 'serratus']
+      bp: 'chest', primaries: ['chest'], secondaries: ['deltoids', 'biceps', 'serratus'],
     })
   })
 
   it('maps chest-press machines to chest with pressing assistants', () => {
     expectMapping('0577', {
-      bp: 'chest', primaries: ['chest'], secondaries: ['deltoids', 'triceps', 'biceps']
+      bp: 'chest', primaries: ['chest'], secondaries: ['deltoids', 'triceps', 'biceps'],
     })
   })
 
   it('maps cable crossovers to drawing-ready upper-back support', () => {
     expectMapping('0155', {
-      bp: 'chest', primaries: ['chest'], secondaries: ['upper-back', 'trapezius']
+      bp: 'chest', primaries: ['chest'], secondaries: ['upper-back', 'trapezius'],
     })
   })
 
@@ -125,8 +125,13 @@ describe('machine muscle metadata batch 2', () => {
     expect(raw).toMatchObject({ id: '0577', n: 'lever chest press', tg: 'pectorals', mg: 'triceps' })
     expect(raw).not.toHaveProperty('primaries')
     expect(raw).not.toHaveProperty('secondaries')
-    expect(musclesOf(raw)).toEqual({ chest: 1, 'front-deltoid': 0.4, triceps: 0.4 })
-    expect(musclesOf(EXIDX['0577'])).toEqual({ chest: 1, 'front-deltoid': 0.4, triceps: 0.4, biceps: 0.4, serratus: 0.4 })
+    expect(musclesOf(raw)).toEqual({
+      'upper-chest': 1, 'mid-chest': 1, 'lower-chest': 1, 'front-deltoid': 0.4, triceps: 0.4,
+    })
+    expect(musclesOf(EXIDX['0577'])).toEqual({
+      'upper-chest': 1, 'mid-chest': 1, 'lower-chest': 1,
+      'front-deltoid': 0.4, triceps: 0.4, biceps: 0.4, serratus: 0.4,
+    })
   })
 
   it('gives an explicit custom collision precedence and restores the machine overlay', () => {
@@ -139,6 +144,9 @@ describe('machine muscle metadata batch 2', () => {
     registerCustom([])
     expect(EXIDX['0577']).toMatchObject({ bp: 'chest', primaries: ['chest'] })
     expect(EXIDX['0577'].secondaries).toContain('serratus')
-    expect(musclesOf(EXIDX['0577'])).toEqual({ chest: 1, 'front-deltoid': 0.4, triceps: 0.4, biceps: 0.4, serratus: 0.4 })
+    expect(musclesOf(EXIDX['0577'])).toEqual({
+      'upper-chest': 1, 'mid-chest': 1, 'lower-chest': 1,
+      'front-deltoid': 0.4, triceps: 0.4, biceps: 0.4, serratus: 0.4,
+    })
   })
 })
