@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { useUI } from '../store/useUI.js'
-import { exOr, betterWeight } from '../lib/exercises.js'
+import { exOr, betterWeight, isAssisted } from '../lib/exercises.js'
 import { usesBar, barWeightFor, plateSplit } from '../lib/bar.js'
 import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, setUnitsTotal, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor } from '../lib/history.js'
 import { fmtNum, capWords, fmtDate, exCount } from '../lib/format.js'
@@ -24,6 +24,7 @@ import { isWarmupRow, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, a
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-workout-order.js'
 import { MUSCLE_NAME } from '../lib/muscles.js'
 import { setTrendOn, setTrendsFor, historyBefore, trendGlyph, trendLabel } from '../lib/set-trend.js'
+import { bestsFor, lastRowFor, oddValues } from '../lib/typo-check.js'
 
 const SWIPE_MIN_DISTANCE = 48
 const SWIPE_AXIS_RATIO = 1.25
@@ -700,8 +701,8 @@ function ActiveWorkout() {
     canMoveDown: canMoveActiveWorkoutUnit(A, idx, 1),
     onRemoveExercise: () => confirmRemoveExercise(idx),
     busy: !!work,
-    onToggle: i => toggle(idx, i),
-    onToggleSide: (i, side) => toggle(idx, i, side),
+    onToggle: i => checkedToggle(idx, i),
+    onToggleSide: (i, side) => checkedToggle(idx, i, side),
     onField: (i, f, v) => setField(idx, i, f, v),
     onAddSet: () => addSet(idx),
     onRemoveSet: () => removeSet(idx),
@@ -857,6 +858,37 @@ function ActiveWorkout() {
     useUI.getState().startWork(e.sets[i].sec || 45, exerciseNameFor(exOr(e.id)), elapsed => {
       mutEntry(idx, en => { en.sets[i].sec = elapsed })
       if (!useStore.getState().S.active.entries[idx].sets[i].done) toggle(idx, i)
+    })
+  }
+
+  // A tick whose weight or reps look mistyped (300 where you usually lift about 80) asks first.
+  // Fix it leaves the set unticked. Log as typed ticks it. An untick, a hold's timer and a
+  // first-ever set do not ask.
+  const checkedToggle = (idx, i, side) => {
+    const live = useStore.getState().S
+    const e = live.active?.entries?.[idx]
+    const row = side ? e?.sets?.[i]?.sides?.[side] : e?.sets?.[i]
+    if (!row || row.done || modeAt(idx) !== 'reps') return toggle(idx, i, side)
+    const past = historyBefore(live, live.active)
+    const last = lastEntryFor(past, e.id, e.target)
+    const odd = oddValues(row, bestsFor(past.workouts, e.id), {
+      unit: live.unit, assisted: isAssisted(e.id), last: lastRowFor(last?.sets, e.sets, i, side),
+    })
+    if (!odd.length) return toggle(idx, i, side)
+    const shown = v => fmtNum(v) + ' ' + (live.unit || 'kg')
+    const say = ({ f, typed, ref, low }) => f === 'w'
+      ? (low
+        ? t('Weight: {0} is under a third of last time’s {1}.', shown(typed), shown(ref))
+        : t('Weight: {0} is more than twice your heaviest, {1}.', shown(typed), shown(ref)))
+      : (low
+        ? t('Reps: {0} is under a third of last time’s {1}.', typed, ref)
+        : t('Reps: {0} is more than twice your most, {1}.', typed, ref))
+    confirmSheet({
+      title: t('Is that right?'),
+      message: odd.map(say).join(' '),
+      confirmText: t('Fix it'),
+      cancelText: t('Log as typed'),
+      onCancel: () => toggle(idx, i, side),
     })
   }
 
