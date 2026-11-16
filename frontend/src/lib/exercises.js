@@ -2,6 +2,7 @@ import { EXALIAS, EXDB } from './exercises-data.js'
 import { KETTLEBELL_EXTRA, KETTLEBELL_REPLACED } from './kettlebell-extra.js'
 import { USER_EXERCISE_MUSCLE_OVERRIDES, exerciseMuscleMetadataFor } from './exercise-muscle-batch-1.js'
 import { t, getVersion, exerciseNameSearchText } from './i18n-core.js'
+import { exerciseAliases } from './exercise-aliases.js'
 
 export { EXDB }
 
@@ -105,6 +106,10 @@ export function categoriesOf(list) {
 // Custom (user-created) exercises live in synced state S.customEx (issue #11) and are
 // merged into the id index here so every EXIDX[id] lookup keeps working unchanged.
 let customIds = []
+// Where it lives decides, not the flag alone. A catalogue object is never custom, even when a
+// custom exercise reuses its id.
+export const isCustomEx = ex => !!ex && typeof ex === 'object' && !CATALOGUE.includes(ex) &&
+  (ex.custom === true || customIds.includes(ex.id))
 export function registerCustom(list) {
   customIds.forEach(id => {
     delete EXIDX[id]
@@ -115,7 +120,15 @@ export function registerCustom(list) {
   ;(list || []).forEach(e => { EXIDX[e.id] = e })
 }
 // Full searchable catalogue — customs first so your own exercises are easy to find.
-export const allExercises = st => [...(st.customEx || []), ...CATALOGUE]
+// An exercise merged into another drops out of the lists. A catalogue one cannot be deleted,
+// so the merge hides it; searching its old name finds the one it moved into.
+export const allExercises = st => {
+  const all = [...(st?.customEx || []), ...CATALOGUE]
+  const m = st?.exMerged
+  if (!m || typeof m !== 'object') return all
+  const away = new Set(Object.keys(m).filter(k => m[k] && m[k].into))
+  return away.size ? all.filter(e => !away.has(e.id)) : all
+}
 
 function searchableText(value) {
   if (Array.isArray(value)) return value.map(searchableText).join(' ')
@@ -276,10 +289,12 @@ const corpusCache = new WeakMap()
 
 function corpusOf(e) {
   const v = getVersion()
+  const extra = exerciseAliases(e)
+  const aliasKey = extra.join('\n')
   const hit = corpusCache.get(e)
-  if (hit && hit.v === v) return hit
+  if (hit && hit.v === v && hit.a === aliasKey) return hit
   const sm = Array.isArray(e?.sm) ? e.sm : []
-  const name = normalizeStr(exerciseNameSearchText(e))
+  const name = normalizeStr(exerciseNameSearchText(e) + (extra.length ? ' ' + extra.join(' ') : ''))
   const s = normalizeStr([
     name,
     e?.tg || '', t(e?.tg || ''),
@@ -288,7 +303,7 @@ function corpusOf(e) {
     ...sm, ...sm.map(m => t(m)),
     e?.desc || ''
   ].join(' '))
-  const entry = { v, s, nameWords: name.split(/\s+/).filter(Boolean) }
+  const entry = { v, a: aliasKey, s, nameWords: name.split(/\s+/).filter(Boolean) }
   corpusCache.set(e, entry)
   return entry
 }

@@ -3,6 +3,7 @@ import { api, setRemoteAuth } from '../lib/api.js'
 import { localTZ } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { registerCustom } from '../lib/exercises.js'
+import { registerExerciseAliases } from '../lib/exercise-aliases.js'
 import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
 import { guestAllowed } from '../lib/guest.js'
 import { MOBILE, initReminderSync, nativeLoad, nativeSave, onAppActive, syncReminder, writeAutoBackup } from '../lib/mobile.js'
@@ -157,6 +158,7 @@ export const useStore = create((set, get) => {
   const persist = (S, push = true, stamp = true) => {
     if (stamp) S._ts = Date.now()
     registerCustom(S.customEx)
+    registerExerciseAliases(S.exAliases)
     localStorage.setItem(KEY, JSON.stringify(S))
     set({ S })
     if (MOBILE) nativePersist()
@@ -340,7 +342,7 @@ export const useStore = create((set, get) => {
   }
 
   return {
-    S: (() => { const s = loadState(); registerCustom(s.customEx); return s })(),
+    S: (() => { const s = loadState(); registerCustom(s.customEx); registerExerciseAliases(s.exAliases); return s })(),
     user: (() => { try { return JSON.parse(localStorage.getItem('gym_user')) || null } catch { return null } })(),
     ready: false,
     // Server sync as the banner sees it (components/SyncBanner.jsx). Only meaningful signed in.

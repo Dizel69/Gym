@@ -27,6 +27,7 @@
  * would close it.
  */
 import { beatsWeight } from './exercises.js'
+import { applyExerciseMerges } from './exercise-merge.js'
 import { mergeHealthDays } from './health.js'
 import { mergeDay } from './weigh-ins.js'
 import { normalizeMeasurementsState } from './measurements.js'
@@ -153,6 +154,30 @@ export function mergeStates(a, b, { prefer } = {}) {
   for (const f of ['exNotes', 'barWeights']) {
     if (n[f] || o[f]) out[f] = clone({ ...(o[f] || {}), ...(n[f] || {}) })
   }
+  if (o.exMerged && typeof o.exMerged === 'object') {
+    const map = { ...(out.exMerged || {}) }
+    for (const [k, v] of Object.entries(o.exMerged)) {
+      if (!map[k] || (Number(v?._ts) || 0) > (Number(map[k]?._ts) || 0)) map[k] = clone(v)
+    }
+    out.exMerged = map
+  }
+  if (o.exAliases && typeof o.exAliases === 'object') {
+    const al = { ...(out.exAliases || {}) }
+    for (const [k, v] of Object.entries(o.exAliases)) {
+      const have = Array.isArray(al[k]) ? [...al[k]] : []
+      const seen = new Set(have.map(x => String(x).toLocaleLowerCase()))
+      for (const name of Array.isArray(v) ? v : []) {
+        if (typeof name !== 'string' || !name.trim() || seen.has(name.toLocaleLowerCase())) continue
+        seen.add(name.toLocaleLowerCase())
+        have.push(name)
+      }
+      if (have.length) al[k] = have
+    }
+    out.exAliases = al
+  }
+  // A merge recorded on either copy: a workout or custom exercise that still uses the old name
+  // moves to where that exercise went.
+  applyExerciseMerges(out)
   out._ts = Math.max(a._ts || 0, b._ts || 0)
   delete out._rev
   return out

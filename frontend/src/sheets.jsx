@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
-import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, categoriesOf, equipmentOf, smOf, searchExercises, exOr, isAssisted, betterWeight, beatsWeight } from './lib/exercises.js'
+import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, categoriesOf, equipmentOf, smOf, searchExercises, exOr, isAssisted, betterWeight, beatsWeight, isCustomEx } from './lib/exercises.js'
+import { mergeExercise, undoMerge, mergePreview, mergeBlocked } from './lib/exercise-merge.js'
 import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile } from './lib/equipment.js'
 import { fmtDate, fmtNum, capWords, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, routineCount, DAYN, DAYS, weekOrder, weekStartOf, weekDayOffset, MONTHS_LONG, ACCENTS } from './lib/format.js'
 import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineIds, workoutVolume, setsDone, setsDoneActive, setUnitsTotal, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
@@ -733,6 +734,8 @@ function expandMuscleTags(ex, tokens) {
 
 function ExerciseDetail({ ex, close }) {
   const st = useStore(s => s.S)
+  const moved = mergePreview(st, ex.id, null)
+  const canMerge = !ex.missing && (isCustomEx(ex) || moved.workouts + moved.routines > 0)
   const last = lastEntryFor(st, ex.id)
   const best = bestWeightFor(st, ex.id)
   const fav = isFav(st, ex.id)
@@ -774,9 +777,61 @@ function ExerciseDetail({ ex, close }) {
     {!isCardio(ex) && !isAssisted(ex) && <OneRM ex={ex} />}
     <StrengthLevelBlock exId={ex.id} />
     {instrFor(ex).length > 0 &&<><h4 className="sec">{t('How to')}{(instrIsEnglishFallback(ex) || !INSTR_LANGS.includes(getLang())) && <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}> · {t('instructions in English')}</span>}</h4><ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol></>}
+    {canMerge && <button type="button" className="lrow tap" style={{ marginTop: 16 }} onClick={() => mergeExerciseFlow(ex, close)}>
+      <Icon name="merge" className="lrow-i" /><span className="lrow-m"><span className="lrow-t">{t('Merge into…')}</span></span>
+    </button>}
   </>
 }
 export const exerciseDetailSheet = ex => ui().openSheet(close => <ExerciseDetail ex={ex} close={close} />)
+
+// «2 тренировки», «5 тренировок». English only distinguishes one.
+function countName(n, one, few, many) {
+  if (getLang() === 'ru') {
+    const a = n % 10, b = n % 100
+    const key = a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many
+    return t(key, n)
+  }
+  return t(n === 1 ? one : many, n)
+}
+
+// Merge into…: pick where this exercise's history goes, see what moves, confirm. The toast's
+// Undo puts it all back.
+export function mergeExerciseFlow(ex, afterMerge) {
+  if (S().active?.entries?.some(e => e.id === ex.id)) { toast(t('Finish your current workout first')); return }
+  const name = exerciseNameFor(ex)
+  const picker = exercisePicker(target => {
+    picker.close()
+    const live = S()
+    const why = mergeBlocked(live, ex.id, target.id)
+    if (why) { toast(t(why)); return }
+    const p = mergePreview(live, ex.id, target.id)
+    const into = exerciseNameFor(target)
+    const moves = [
+      p.workouts && countName(p.workouts, '{0} logged workout', '{0} logged workouts, a few', '{0} logged workouts'),
+      p.routines && countName(p.routines, '{0} planned routine', '{0} planned routines, a few', '{0} planned routines'),
+    ].filter(Boolean)
+    confirmSheet({
+      title: t('Merge into “{0}”?', into),
+      message: [
+        moves.length
+          ? t('{0} move to “{1}”, with every set, note and record.', moves.join(getLang() === 'ru' ? ' и ' : ', '), into)
+          : t('Nothing is logged or planned with it yet.'),
+        t('Then “{0}” disappears from your lists, and searching for it finds “{1}”.', name, into),
+      ].join(' '),
+      confirmText: t('Merge'),
+      onConfirm: () => {
+        let undo = null
+        try { update(s => { undo = mergeExercise(s, ex.id, target.id, { names: [name] }).undo }) }
+        catch (e) { toast(t(e.message)); return }
+        afterMerge && afterMerge()
+        ui().toast(t('Merged into “{0}”', into), {
+          action: t('Undo'),
+          onAction: () => { if (undo) update(s => undoMerge(s, undo)) },
+        })
+      },
+    })
+  }, { title: t('Merge into…'), exclude: ex.id })
+}
 
 /* ============================ exercise history ============================ */
 // What you did on this exercise before, reachable mid-workout (issue #43): the curve first,
@@ -996,7 +1051,7 @@ function exerciseById(st, id) {
   return EXIDX[id] || allExercises(st).find(e => e.id === id) || null
 }
 
-function ExercisePicker({ onPick, close, like, title }) {
+function ExercisePicker({ onPick, close, like, title, exclude }) {
   const st = useStore(s => s.S)
   const usage = usageMap(st)
   const likeEx = like ? exerciseById(st, like) : null
@@ -1018,7 +1073,7 @@ function ExercisePicker({ onPick, close, like, title }) {
   const searchRef = useRef(null)
   const catStrip = useRef(null), bpStrip = useRef(null), eqStrip = useRef(null)
   const onSearchFocus = useSheetKeyboard(searchRef)
-  const all = allExercises(st).filter(e => !like || e.id !== like)
+  const all = allExercises(st).filter(e => e.id !== like && e.id !== exclude)
   const profile = activeProfile(st)
   const special = bp === '★' || bp === '☆'
   const inScope = e => bp === '★' ? usage[e.id] : bp === '☆' ? isFav(st, e.id) : true
@@ -1053,8 +1108,8 @@ function ExercisePicker({ onPick, close, like, title }) {
   const rowOf = e => <div key={e.id} className="item" {...tappable(() => onPick(e))}>
     <Thumb ex={e} /><div className="grow"><div className="tt capitalize">{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
     {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
-    <button className="iconbtn chev" aria-label={like ? t('Swap to {0}', exerciseNameFor(e)) : t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
-      onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
+    {!exclude && <button className="iconbtn chev" aria-label={like ? t('Swap to {0}', exerciseNameFor(e)) : t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
+      onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>}
   </div>
   if (byMuscle) return <>
     <div className="row between" style={{ marginBottom: 10 }}><h3>{heading}</h3>
@@ -1120,7 +1175,7 @@ function ExercisePicker({ onPick, close, like, title }) {
 // `like` is the exercise being replaced: the list opens on its target muscle, and up to three
 // similar exercises lead it — the same movement when the catalogue has one, otherwise the same
 // muscle and the same exercise type.
-export const exercisePicker = (onPick, { title, like } = {}) => ui().openSheet(close => <ExercisePicker onPick={onPick} close={close} like={like} title={title} />)
+export const exercisePicker = (onPick, { title, like, exclude } = {}) => ui().openSheet(close => <ExercisePicker onPick={onPick} close={close} like={like} title={title} exclude={exclude} />)
 
 /** Start a safe swap for one exact active-workout occurrence. */
 export function swapActiveWorkoutExercise(index) {

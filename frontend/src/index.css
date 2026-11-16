@@ -1334,6 +1334,8 @@ body.chips-dragging *{cursor:inherit}
   max-width:88vw;text-align:center;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.has-action{display:flex;align-items:center;gap:12px;pointer-events:auto;text-align:left;padding:8px 8px 8px 18px}
+#toast .toast-act{color:var(--acc);font-weight:650;padding:6px 12px;border-radius:99px;white-space:nowrap}
 
 /* ---------------------------------------------------------------- misc --- */
 .empty{text-align:center;color:var(--label-2);padding:44px 20px;font-size:15px;line-height:1.45}
