@@ -1097,6 +1097,30 @@ body.chips-dragging *{cursor:inherit}
   font-size:12px;color:var(--label-2);margin-bottom:5px;text-transform:capitalize;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
+/* Last five seconds of every rest: the clock gives way to the number. Column even on a
+   wide window, where an ordinary rest sits on one line. */
+#timer.rest.finale{flex-direction:column;align-items:stretch}
+#timer.rest.finale .head{justify-content:center;gap:8px}
+#timer.rest.finale .t{
+  font-size:64px;line-height:.9;min-width:0;color:var(--acc);text-align:center;
+  animation:restpop .35s var(--ease);
+}
+#timer.rest.finale .lbl{font-size:15px;font-weight:650;color:var(--label)}
+@keyframes restpop{from{transform:scale(1.28)}to{transform:none}}
+/* 3, 2, 1 before a hold that starts itself. Same stack as the rest bar: the number
+   reads on its own, the two buttons get the row under it. */
+#timer.countin{flex-direction:column;align-items:stretch;gap:10px;border:var(--hair) solid var(--acc)}
+#timer.countin .head{display:flex;align-items:center;justify-content:center;gap:12px;min-width:0}
+#timer.countin .t{
+  font-size:64px;line-height:.9;min-width:0;color:var(--acc);text-align:center;
+  animation:restpop .35s var(--ease);
+}
+#timer.countin .lbl{
+  font-size:15px;font-weight:650;color:var(--label);text-transform:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+}
+#timer.countin .acts{display:flex;align-items:center;gap:8px}
+#timer.countin .acts .btn{flex:1}
 
 /* ---------------------------------------------------------------- modal -- */
 #modal-root{position:fixed;inset:0;z-index:100;display:none}

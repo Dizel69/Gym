@@ -25,6 +25,7 @@ import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-w
 import { MUSCLE_NAME } from '../lib/muscles.js'
 import { setTrendOn, setTrendsFor, historyBefore, trendGlyph, trendLabel } from '../lib/set-trend.js'
 import { bestsFor, lastRowFor, oddValues } from '../lib/typo-check.js'
+import { nextAutoHold } from '../lib/auto-hold.js'
 
 const SWIPE_MIN_DISTANCE = 48
 const SWIPE_AXIS_RATIO = 1.25
@@ -521,9 +522,6 @@ function ActiveWorkout() {
   const update = useStore(s => s.update)
   const { startRest: liveRest, stopRest, stopWork, work } = useUI()
   const A = S.active
-  // A past workout has no rest to time — the sets were done days ago. The work timer for
-  // timed sets stays, since counting a hold is how its duration gets entered.
-  const startRest = A.backfill ? () => {} : liveRest
   const units = supersetUnits(A.entries)
   const cur = Number.isInteger(A.cur)
     ? Math.min(Math.max(A.cur, 0), Math.max(0, A.entries.length - 1))
@@ -858,6 +856,26 @@ function ActiveWorkout() {
     useUI.getState().startWork(e.sets[i].sec || 45, exerciseNameFor(exOr(e.id)), elapsed => {
       mutEntry(idx, en => { en.sets[i].sec = elapsed })
       if (!useStore.getState().S.active.entries[idx].sets[i].done) toggle(idx, i)
+    })
+  }
+  const startTimedRef = useRef(startTimed)
+  startTimedRef.current = startTimed
+  // A past workout has no rest to time. A hold (plank, hang) counts itself in once the rest
+  // ends, unless Settings turned that off. Reps rests end as they always have.
+  const startRest = (sec, forIdx) => {
+    if (A.backfill) return
+    liveRest(sec, forIdx, () => {
+      if (useStore.getState().S.autoHolds === false) return false
+      const live = useStore.getState().S.active
+      if (!live) return false
+      const next = nextAutoHold(live, forIdx, i => {
+        const e = live.entries[i]
+        return !!e && modeOf({ ...(e.target || {}), id: e.id }) === 'time'
+      })
+      if (!next) return false
+      const name = exerciseNameFor(exOr(live.entries[next.idx].id))
+      useUI.getState().startCountIn(name, () => startTimedRef.current?.(next.idx, next.i))
+      return true
     })
   }
 

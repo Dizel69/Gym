@@ -96,3 +96,46 @@ describe('opt-in timer screen flash', () => {
     expect(useUI.getState().timerFlashId).toBe(1)
   })
 })
+
+describe('hold that starts itself', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    useUI.setState({ timer: null, work: null, countIn: null, toastMsg: '' })
+  })
+  afterEach(() => {
+    useUI.getState().stopCountIn()
+    useUI.getState().stopRest()
+    vi.useRealTimers()
+  })
+
+  it('counts 3, 2, 1 and then starts the hold, with no rest-over toast', () => {
+    const go = vi.fn()
+    useUI.getState().startRest(1, 0, () => {
+      useUI.getState().startCountIn('Plank', go)
+      return true
+    })
+    vi.advanceTimersByTime(1000)
+    expect(useUI.getState().toastMsg).toBe('')
+    expect(useUI.getState().countIn.left).toBe(3)
+    vi.advanceTimersByTime(3000)
+    expect(go).toHaveBeenCalledOnce()
+    expect(useUI.getState().countIn).toBe(null)
+  })
+
+  it('skip starts the count-in immediately', () => {
+    useUI.getState().startRest(30, 0, () => {
+      useUI.getState().startCountIn('Plank', () => {})
+      return true
+    })
+    useUI.getState().skipRest()
+    expect(useUI.getState().timer).toBe(null)
+    expect(useUI.getState().countIn.left).toBe(3)
+  })
+
+  it('still toasts when nothing takes over', () => {
+    useUI.getState().startRest(1, 0, () => false)
+    vi.advanceTimersByTime(1000)
+    expect(useUI.getState().toastMsg).toBe('Rest over — next set!')
+    expect(useUI.getState().countIn).toBe(null)
+  })
+})

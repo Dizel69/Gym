@@ -60,11 +60,16 @@ let timerTick = null
 let workInt = null
 let workTick = null
 let workDone = null
+let restDone = null
+let countInt = null
+let countTick = null
+let countGo = null
 
 export const useUI = create((set, get) => ({
   sheets: [],          // { id, render:(close)=>JSX, kind:'sheet'|'center', locked }
   toastMsg: '',
   toastAction: null,   // { label, run } while a toast offers Undo
+  countIn: null,       // 3, 2, 1 before a hold that starts itself — { left, total, endsAt, label }
   timer: null,         // rest countdown between sets — { left, total, endsAt, forIdx }
                        // forIdx: index of the active entry whose set started the rest (undefined when unknown)
   work: null,          // work countdown DURING a timed set (issue #16) — { left, total, endsAt, label }
@@ -100,11 +105,12 @@ export const useUI = create((set, get) => ({
     act.run()
   },
 
-  startRest(sec, forIdx) {
+  startRest(sec, forIdx, onDone) {
     get().stopRest()
     // Rest timer set to Off. Stopping and returning rather than starting a zero-length timer
     // keeps every caller honest: the four places that start a rest do not each need to know.
-    if (!(sec > 0)) return
+    restDone = typeof onDone === 'function' ? onDone : null
+    if (!(sec > 0)) { restDone = null; return }
     const endsAt = Date.now() + sec * 1000
     set({ timer: { left: sec, total: sec, endsAt, forIdx } })
     pushRestTimer(sec)
@@ -122,17 +128,21 @@ export const useUI = create((set, get) => ({
           beep(snd, 880, 0.15); beep(snd, 880, 0.15, 0.25); beep(snd, 1320, 0.4, 0.5)
           vibrate([200, 100, 200]); get().flashTimer()
         }
+        const cb = restDone
+        // Hidden: the native alert is what reaches another app. Cancelling it here
+        // races the alarm and leaves Telegram silent. On screen, the beep is enough.
+        get().stopRest({ keepAlert: !seenLive })
+        // A hold that starts itself takes the screen instead of the "rest over" toast.
+        // Hidden, the phone was not here for the 3, 2, 1, so the rest ends as it always did.
+        if (seenLive && cb && cb()) return
         // The toast stays even when the rest ran out while the app was hidden: a guest, or anyone
         // without push permission, gets no notification, and a countdown that silently vanishes
         // on reopen reads like a bug. Only the loud parts (beep, vibration, flash) are gated.
         get().toast(t('Rest over — next set!'))
         maybeRestNotification()
-        // Hidden: the native alert is what reaches another app. Cancelling it here
-        // races the alarm and leaves Telegram silent. On screen, the beep is enough.
-        get().stopRest({ keepAlert: !seenLive })
         return
       }
-      if (left <= 3) beep(snd, 660, 0.1)
+      if (left <= 5) beep(snd, 660, 0.1)
       set({ timer: { ...tm, left } })
     }
     timerInt = setInterval(timerTick, 1000)
@@ -157,12 +167,58 @@ export const useUI = create((set, get) => ({
     if (!tm || !(tm.forIdx >= at)) return
     set({ timer: { ...tm, forIdx: tm.forIdx + delta } })
   },
+  // Skip means "I'm ready". A following hold counts in; anything else just ends the rest.
+  skipRest() {
+    const cb = restDone
+    get().stopRest()
+    if (cb) cb()
+  },
   stopRest({ keepAlert = false } = {}) {
     if (timerInt) clearInterval(timerInt); timerInt = null
     if (timerTick) document.removeEventListener('visibilitychange', timerTick); timerTick = null
+    restDone = null
     if (get().timer) cancelPushRestTimer()
     if (!keepAlert) cancelRestNotification()
     set({ timer: null })
+  },
+
+  // 3, 2, 1, then `onGo`. Cancel drops it and starts nothing.
+  startCountIn(label, onGo) {
+    get().stopCountIn()
+    get().stopRest()
+    const total = 3
+    const endsAt = Date.now() + total * 1000
+    countGo = typeof onGo === 'function' ? onGo : null
+    set({ countIn: { left: total, total, endsAt, label: label || '' } })
+    const snd0 = useStore.getState().S.sound
+    beep(snd0, 660, 0.1)
+    countTick = () => {
+      const c = get().countIn
+      if (!c) return
+      const left = Math.max(0, Math.ceil((c.endsAt - Date.now()) / 1000))
+      if (left === c.left) return
+      const snd = useStore.getState().S.sound
+      if (left <= 0) {
+        const go = countGo
+        get().stopCountIn()
+        if (go) go()
+        return
+      }
+      beep(snd, 660, 0.1)
+      set({ countIn: { ...c, left } })
+    }
+    countInt = setInterval(countTick, 200)
+  },
+  goNow() {
+    const go = countGo
+    get().stopCountIn()
+    if (go) go()
+  },
+  stopCountIn() {
+    if (countInt) clearInterval(countInt); countInt = null
+    countTick = null
+    countGo = null
+    if (get().countIn) set({ countIn: null })
   },
 
   /* ---- work timer (issue #16) ----
@@ -175,6 +231,7 @@ export const useUI = create((set, get) => ({
      hold records 0:38 rather than crediting the full target. */
   startWork(sec, label, onDone) {
     get().stopWork()
+    get().stopCountIn()
     get().stopRest()
     const total = Math.max(1, Math.round(sec) || 1)
     const endsAt = Date.now() + total * 1000

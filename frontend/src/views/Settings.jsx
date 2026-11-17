@@ -362,6 +362,10 @@ export default function Settings() {
         subtitle={t('A small ↑, = or ↓ on each set you finish, in the workout and in History.')}>
         <Switch aria-label={t('Compare sets with last time')} checked={S.setTrend !== false} onChange={v => update(s => { s.setTrend = v })} />
       </Row>
+      <Row icon="timer" iconTint="var(--acc)" title={t('Timed holds start by themselves')}
+        subtitle={t('Rest ends, then 3, 2, 1, and the hold starts. At zero the set logs itself.')}>
+        <Switch aria-label={t('Timed holds start by themselves')} checked={S.autoHolds !== false} onChange={v => update(s => { s.autoHolds = v })} />
+      </Row>
     </Section>
 
     {(user || MOBILE) && <NotificationsCard S={S} update={update} toast={toast} />}
