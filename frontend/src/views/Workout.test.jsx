@@ -236,11 +236,11 @@ describe('Workout set completion flow', () => {
       ],
     })])
     await toggleSet(0)
-    expect(mocks.startRest).toHaveBeenLastCalledWith(45, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenLastCalledWith(45, expect.any(Number), expect.any(Function))
     await toggleSet(1)
-    expect(mocks.startRest).toHaveBeenLastCalledWith(150, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenLastCalledWith(150, expect.any(Number), expect.any(Function))
     await toggleSet(2)
-    expect(mocks.startRest).toHaveBeenLastCalledWith(150, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenLastCalledWith(150, expect.any(Number), expect.any(Function))
     expect(mocks.startRest).toHaveBeenCalledTimes(3)
   })
 
@@ -249,7 +249,7 @@ describe('Workout set completion flow', () => {
     await toggleSet(0)
 
     expect(mocks.startRest).toHaveBeenCalledOnce()
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
     expect(mocks.stopRest).not.toHaveBeenCalled()
 
     await unmount()
@@ -272,7 +272,7 @@ describe('Workout set completion flow', () => {
     expect(mocks.S.exWeights['plain-bench']).toBeUndefined()   // written at the finish, not while ticking
     expect(mocks.topWeightSheet).not.toHaveBeenCalled()
     expect(mocks.S.active.cur).toBe(0)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
 
     await pressNext()
 
@@ -298,7 +298,7 @@ describe('Workout set completion flow', () => {
 
     expect(mocks.topWeightSheet).not.toHaveBeenCalled()
     expect(mocks.S.active.cur).toBe(1)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
 
     await pressNext()
 
@@ -395,7 +395,7 @@ describe('Workout set completion flow', () => {
 
     expect(mocks.topWeightSheet).not.toHaveBeenCalled()
     expect(mocks.S.active.cur).toBe(1)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 
   it('does not auto-select an unfinished superset after completing an ordinary exercise', async () => {
@@ -411,7 +411,7 @@ describe('Workout set completion flow', () => {
     expect(mocks.S.active.cur).toBe(0)
     expect(mocks.workoutCompleteSheet).not.toHaveBeenCalled()
     expect(mocks.toast).toHaveBeenCalledWith('Hold logged')
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 
   it('does not auto-select earlier unfinished work after completing an ordinary exercise', async () => {
@@ -424,7 +424,7 @@ describe('Workout set completion flow', () => {
 
     expect(mocks.S.active.cur).toBe(1)
     expect(mocks.workoutCompleteSheet).not.toHaveBeenCalled()
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 
   it('leaves a completed ordinary exercise selected without declaring completion while work remains', async () => {
@@ -438,7 +438,7 @@ describe('Workout set completion flow', () => {
     expect(mocks.topWeightSheet).not.toHaveBeenCalled()
     expect(mocks.workoutCompleteSheet).not.toHaveBeenCalled()
     expect(mocks.S.active.cur).toBe(0)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 
   it('shows workout completion only when no unfinished unit remains', async () => {
@@ -894,7 +894,7 @@ describe('superset flow survives an exercise being removed mid-session', () => {
 
     // Partner closes the round (each still has a second set), which is what starts the rest.
     await toggleSet(2)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 })
 
@@ -1112,7 +1112,7 @@ describe('workout list view', () => {
 
     expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
     expect(mocks.S.active.cur).toBe(0)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 
   it('does not declare the workout complete after a set of a non-current exercise while sets remain', async () => {
@@ -1127,7 +1127,7 @@ describe('workout list view', () => {
 
     expect(mocks.S.active.entries[1].sets[0].done).toBe(true)
     expect(mocks.workoutCompleteSheet).not.toHaveBeenCalled()
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 
   it('renders a superset as one grouped unit with its own unpair control', async () => {
@@ -1244,7 +1244,7 @@ describe('workout compact view', () => {
     await toggleSet(0)
 
     expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 })
 
@@ -1386,7 +1386,7 @@ describe('effort rating auto-ends the set', () => {
 
     expect(mocks.S.active.entries[0].sets[0].rir).toBe(2)
     expect(mocks.S.active.entries[0].sets[0].done).toBe(true)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
   })
 
   it('does not re-toggle a set that is already done — a rating change leaves it done', async () => {
@@ -1441,7 +1441,7 @@ describe('per-side effort completion', () => {
     await act(async () => { rightPick(scale === 'rir' ? 0 : 10) })
     set = mocks.S.active.entries[0].sets[0]
     expect(set.done).toBe(true)
-    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number))
+    expect(mocks.startRest).toHaveBeenCalledWith(90, expect.any(Number), expect.any(Function))
     const calls = mocks.startRest.mock.calls.length
     await act(async () => { rightPick(1) })
     expect(set.sides.R.done).toBe(true)
