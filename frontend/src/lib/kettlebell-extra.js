@@ -37,6 +37,9 @@ export const KETTLEBELL_REPLACED = {
   'kb-burst': '0542',         // рывок одной рукой
   'kb-press': '3572',         // строгий жим
   'kb-protyazhka': '0548',    // протяжка сумо
+  'kb-regrip': 'kb-pass',     // перехватка — тот же переброс из руки в руку
+  'kb-cuckoo': '0536',        // выпад «пролетая над гнездом кукушки»
+  'kb-pendulum': '10192',     // маятник — боковой мах
 }
 
 export function replaceRetiredKettlebellIds(state) {
@@ -90,35 +93,21 @@ export const KETTLEBELL_EXTRA = [
       'Опустите гирю на пол, возьмите её другой рукой и повторите удар.',
     ],
   },
-  move('kb-pass', '0532', 'kettlebell hand-to-hand pass', 'lower arms',
-    ['forearm'], ['side-deltoid', 'obliques'], [
-      'Встаньте прямо. Держите гирю одной рукой перед собой.',
-      'Передайте её в другую руку у пояса, не роняя и не замахиваясь.',
-      'Сразу передайте обратно. Кисти работают всё время.',
-    ]),
-  move('kb-regrip', '0532', 'kettlebell regrip', 'lower arms',
-    ['forearm'], ['biceps'], [
-      'Держите гирю за дужку одной рукой перед собой.',
-      'Перехватите её другой рукой, не опуская на пол.',
-      'Меняйте хват. Это работа для кистей и предплечий.',
-    ]),
-  move('kb-pendulum', '0549', 'kettlebell pendulum', 'waist',
-    ['obliques'], ['forearm', 'gluteal'], [
-      'Встаньте прямо. Держите гирю двумя руками перед собой.',
-      'Раскачивайте её из стороны в сторону, как маятник. Корпус слегка уходит за гирей.',
-      'Не сгибайте спину. Движение идёт от боков.',
-    ]),
+  {
+    ...move('kb-pass', '0532', 'kettlebell hand-to-hand pass', 'lower arms',
+      ['forearm'], ['side-deltoid', 'obliques'], [
+        'Встаньте прямо. Держите гирю одной рукой перед собой.',
+        'Передайте её в другую руку у пояса, не роняя и не замахиваясь.',
+        'Сразу передайте обратно. Кисти работают всё время.',
+      ]),
+    // The old «перехватка» card was this same pass, with the same picture.
+    aliases: ['Перехватка гири', 'kettlebell regrip'],
+  },
   move('kb-world', '0532', 'kettlebell around the world', 'waist',
     ['obliques', 'front-deltoid'], ['forearm', 'side-deltoid'], [
       'Встаньте прямо. Держите гирю двумя руками у груди.',
       'Проведите её в сторону и разверните корпус вслед за руками.',
       'Верните гирю к центру и повторите в другую сторону.',
-    ]),
-  move('kb-cuckoo', '0536', 'kettlebell cuckoo lunge', 'upper legs',
-    ['quadriceps', 'gluteal'], ['hamstring', 'front-deltoid'], [
-      'Держите гирю двумя руками у груди.',
-      'Сделайте глубокий выпад: заднее колено опускается к полу, переднее согнуто.',
-      'Оттолкнитесь передней ногой и вернитесь в стойку. Чередуйте ноги.',
     ]),
   move('kb-high-pull', '0548', 'kettlebell bent-over high pull', 'back',
     ['upper-back', 'trapezius', 'side-deltoid'], ['biceps', 'forearm'], [
@@ -126,7 +115,7 @@ export const KETTLEBELL_EXTRA = [
       'Подтяните её к низу груди и доведите локти вверх, как в протяжке.',
       'Опустите гирю к коленям и повторите.',
     ]),
-  move('kb-curl-alt', '0285', 'kettlebell alternating curl', 'upper arms',
+  move('kb-curl-alt', '5857', 'kettlebell alternating curl', 'upper arms',
     ['biceps'], ['forearm'], [
       'Встаньте прямо. Гиря в одной руке, рука выпрямлена.',
       'Согните руку и поднимите гирю к плечу. Локоть у корпуса.',

@@ -9,10 +9,7 @@ import { musclesOf } from './muscles.js'
 const NAMES = {
   'kb-punch': 'Удар с гирей',
   'kb-pass': 'Переброс гири',
-  'kb-regrip': 'Перехватка гири',
-  'kb-pendulum': 'Маятник с гирей',
   'kb-world': 'Вокруг света с разворотом корпуса',
-  'kb-cuckoo': 'Выпад «пролетая над гнездом кукушки»',
   'kb-high-pull': 'Тяга с протяжкой',
   'kb-curl-alt': 'Подъём на бицепс поочерёдно',
 }
@@ -34,6 +31,9 @@ describe('extra kettlebell exercises', () => {
       expect(Object.values(musclesOf(live)).some(weight => weight > 0), extra.id).toBe(true)
     }
     expect(searchExercises(CATALOGUE, 'перебрасывание').map(exercise => exercise.id)).not.toContain('kb-pass')
+    expect(searchExercises(CATALOGUE, 'перехватка').map(exercise => exercise.id)).toContain('kb-pass')
+    expect(searchExercises(CATALOGUE, 'куку').map(exercise => exercise.id)).toEqual(['0536'])
+    expect(searchExercises(CATALOGUE, 'маятник').map(exercise => exercise.id)).toContain('10192')
     expect(searchExercises(CATALOGUE, 'удар гирей').map(exercise => exercise.id)).toContain('kb-punch')
   })
 
@@ -54,14 +54,14 @@ describe('extra kettlebell exercises', () => {
     expect(searchExercises(CATALOGUE, 'вращение гири вокруг головы').map(exercise => exercise.id)).toEqual(['2939'])
     const state = {
       routines: [{ ex: [{ id: 'kb-halo' }, { id: 'kb-punch' }] }],
-      workouts: [{ entries: [{ id: 'kb-press' }] }],
+      workouts: [{ entries: [{ id: 'kb-press' }, { id: 'kb-regrip' }] }],
       active: { entries: [{ id: 'kb-deadlift' }] },
       exWeights: { 'kb-curl': { w: 16 }, '5857': { w: 24 } },
       favEx: ['kb-halo', '2939', 'kb-punch'],
     }
     expect(replaceRetiredKettlebellIds(state)).toBe(true)
     expect(state.routines[0].ex.map(exercise => exercise.id)).toEqual(['2939', 'kb-punch'])
-    expect(state.workouts[0].entries[0].id).toBe('3572')
+    expect(state.workouts[0].entries.map(entry => entry.id)).toEqual(['3572', 'kb-pass'])
     expect(state.active.entries[0].id).toBe('3322')
     expect(state.exWeights).toEqual({ '5857': { w: 24 } })
     expect(state.favEx).toEqual(['2939', 'kb-punch'])
