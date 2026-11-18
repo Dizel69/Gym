@@ -48,6 +48,8 @@ import { swapSuggestions } from './lib/exercise-substitutes.js'
 import { buildSessionEntries } from './lib/session-start.js'
 import { buildCombinedEntries, deriveSessionName } from './lib/session-merge.js'
 import { workoutsOn, backfillStart, backfillEnd, completeBackfill } from './lib/backfill.js'
+import { editCompletedSession, saveWorkoutEdit, editLeftEmpty, editChangesNothing, deleteEditedWorkout } from './lib/session-edit.js'
+import { moveWorkout, setWorkoutDuration, durationMinOf, startTimeOf, endsInFuture, sameWorkout, MAX_DURATION_MIN } from './lib/workout-date.js'
 
 const S = () => useStore.getState().S
 const update = (...a) => useStore.getState().update(...a)
@@ -1974,6 +1976,71 @@ function WorkoutCardPreview({ w }) {
 }
 export const workoutCardSheet = w => ui().openSheet(close => <WorkoutCardPreview w={w} close={close} />)
 
+function openWorkoutEditor(w, close) {
+  if (S().active) { toast(t('Finish your current workout first')); return }
+  try {
+    update(s => { editCompletedSession(s, w) })
+  } catch {
+    toast(t('Finish your current workout first'))
+    return
+  }
+  close()
+  useUI.getState().stopRest()
+  nav('/workout')
+}
+
+function WorkoutDateEdit({ w, close }) {
+  const [date, setDate] = useState(w.d || todayISO())
+  const [time, setTime] = useState(startTimeOf(w))
+  const today = todayISO()
+  const save = () => {
+    if (!date || date > today) { toast(t('Pick a day up to today')); return }
+    const current = S().workouts.find(x => sameWorkout(x, w))
+    if (!current) { close(); return }
+    if (endsInFuture(date, time, durationMinOf(current))) { toast(t('That time is still in the future')); return }
+    update(s => {
+      const next = moveWorkout(s.workouts, w, date, time)
+      if (next) s.workouts = next
+    })
+    close()
+    toast(t('Date changed'))
+  }
+  return <>
+    <h3>{t('Change date & time')}</h3>
+    <Row icon="calendar" title={t('Date')}>
+      <input type="date" className="timef" value={date} max={today} onChange={e => setDate(e.target.value)} /></Row>
+    <Row icon="clock" title={t('Start time')}>
+      <input type="time" className="timef" value={time} onChange={e => setTime(e.target.value)} /></Row>
+    <div style={{ height: 18 }} />
+    <Button variant="primary" onClick={save}>{t('Save changes')}</Button>
+  </>
+}
+
+function WorkoutDurationEdit({ w, close }) {
+  const [dur, setDur] = useState(durationMinOf(w))
+  const save = () => {
+    const current = S().workouts.find(x => sameWorkout(x, w))
+    if (!current) { close(); return }
+    if (endsInFuture(current.d, startTimeOf(current), dur)) { toast(t('That time is still in the future')); return }
+    let changed = false
+    update(s => {
+      const next = setWorkoutDuration(s.workouts, w, dur)
+      if (!next) return
+      s.workouts = next
+      changed = true
+    })
+    close()
+    if (changed) toast(t('Duration changed'))
+  }
+  return <>
+    <h3>{t('Change duration')}</h3>
+    <Stepper label={t('Duration')} unit="min" value={dur} step={5} decimal={false}
+      onChange={v => setDur(Math.max(1, Math.min(MAX_DURATION_MIN, Math.round(v))))} />
+    <div style={{ height: 18 }} />
+    <Button variant="primary" onClick={save}>{t('Save changes')}</Button>
+  </>
+}
+
 function WorkoutDetail({ w, close }) {
   const noteRef = useRef(null)
   const onNoteFocus = useSheetKeyboard(noteRef)
@@ -1983,7 +2050,7 @@ function WorkoutDetail({ w, close }) {
   // record about a session is often clearer once you have looked at what you actually did.
   const [note, setNote] = useState(w.note || '')
   const saveNote = () => update(s => {
-    const rec = s.workouts.find(x => x.id === w.id)
+    const rec = s.workouts.find(x => sameWorkout(x, w))
     if (!rec) return
     const text = note.trim().slice(0, NOTE_MAX)
     if (text) rec.note = text; else delete rec.note
@@ -1999,14 +2066,15 @@ function WorkoutDetail({ w, close }) {
     const text = latest.current.trim().slice(0, NOTE_MAX)
     if (text === initial.current) return
     update(s => {
-      const rec = s.workouts.find(x => x.id === w.id)
+      const rec = s.workouts.find(x => sameWorkout(x, w))
       if (!rec) return                       // deleted from this very sheet
       if (text) rec.note = text; else delete rec.note
     })
   }, [])
   // A combined session's entries carry a `rid`; group them into per-routine sections in merge
   // order. A legacy single-routine workout (one routineIds, or no rid anywhere) renders flat.
-  const times = entryTimes(w)
+  const live = st.workouts.find(x => sameWorkout(x, w)) || w
+  const times = entryTimes(live)
   const timeLabel = ms => {
     const sec = Math.round((Number(ms) || 0) / 1000)
     return sec < 60 ? t('{0} s', sec) : fmtDur(ms)
@@ -2015,7 +2083,7 @@ function WorkoutDetail({ w, close }) {
   // last time as the log stood before this workout, so an old one is never held against a later.
   const trendsOn = setTrendOn(st)
   const detailSets = e => {
-    const last = trendsOn ? lastTimeBefore(st, w, e) : null
+    const last = trendsOn ? lastTimeBefore(st, live, e) : null
     const trends = last ? setTrendsFor(e, last) : []
     const shown = (e.sets || []).map((s, j) => [s, j]).filter(([s]) => hasCompletedWork(s))
     if (!shown.length) return t('no sets')
@@ -2029,7 +2097,7 @@ function WorkoutDetail({ w, close }) {
     const ex = EXIDX[e.id]
     return <div key={i} className="row" style={{ marginBottom: 12, alignItems: 'flex-start' }}>
       {ex && <Thumb ex={ex} />}
-      <div className="grow"><div className="tt capitalize" style={{ fontWeight: 600 }}>{ex ? exerciseNameFor(ex) : (e.n || e.id)} {w.prs && w.prs.includes(e.id) && <span className="pr"><Icon name="trophy" />PR</span>}</div>
+      <div className="grow"><div className="tt capitalize" style={{ fontWeight: 600 }}>{ex ? exerciseNameFor(ex) : (e.n || e.id)} {live.prs && live.prs.includes(e.id) && <span className="pr"><Icon name="trophy" />PR</span>}</div>
         <div className="ss">{detailSets(e)}</div>
         {times[i] >= 1000 && <div className="small dim" style={{ marginTop: 2 }}>{timeLabel(times[i])}</div>}
         {e.note && <div className="small dim" style={{ marginTop: 3 }}>
@@ -2038,16 +2106,16 @@ function WorkoutDetail({ w, close }) {
     </div>
   }
   const groups = []
-  w.entries.forEach((e, i) => {
+  live.entries.forEach((e, i) => {
     const key = e.rid || '__none'
     let g = groups.find(x => x.key === key)
     if (!g) { g = { key, rid: e.rid || null, items: [] }; groups.push(g) }
     g.items.push([e, i])
   })
-  const grouped = groups.length > 1 || (groups[0] && groups[0].rid && (w.routineIds || []).length > 1)
+  const grouped = groups.length > 1 || (groups[0] && groups[0].rid && (live.routineIds || []).length > 1)
   return <>
-    <h3>{w.name}</h3>
-    <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(w.d, true), ...durPart(w.end - w.start), fmtVol(w.vol, st.unit), ...(w.bw ? [fmtNum(w.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
+    <h3>{live.name}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(live.d, true), ...durPart(live.end - live.start), fmtVol(live.vol, st.unit), ...(live.bw ? [fmtNum(live.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
     {grouped ? groups.map(g => {
       const r = g.rid ? st.routines.find(x => x.id === g.rid) : null
       const setN = g.items.reduce((n, [e]) => n + e.sets.filter(s => s.done && !isWarmupRow(s)).length, 0)
@@ -2061,15 +2129,21 @@ function WorkoutDetail({ w, close }) {
         </div>
         {g.items.map(([e, i]) => entryRow(e, i))}
       </div>
-    }) : w.entries.map((e, i) => entryRow(e, i))}
+    }) : live.entries.map((e, i) => entryRow(e, i))}
     <div className="small muted" style={{ margin: '4px 0 6px' }}>{t('Session note')}</div>
     <textarea ref={noteRef} className="input" rows={2} maxLength={NOTE_MAX} value={note}
       placeholder={t('How the session went as a whole.')}
       onFocus={onNoteFocus} onChange={e => setNote(e.target.value)} onBlur={saveNote} />
     <div style={{ height: 14 }} />
-    <Button icon="upload" onClick={() => workoutCardSheet(w)}>{t('Workout card')}</Button>
+    <Button icon="pencil" onClick={() => openWorkoutEditor(live, close)}>{t('Edit workout')}</Button>
     <div style={{ height: 8 }} />
-    <Button variant="danger" onClick={() => confirmSheet({ title: t('Delete workout?'), message: t('This removes it from your history for good.'), confirmText: t('Delete'), danger: true, onConfirm: () => { update(s => { s.workouts = s.workouts.filter(x => x.id !== w.id) }); close(); toast(t('Workout deleted')) } })}>{t('Delete workout')}</Button>
+    <Button icon="calendar" onClick={() => ui().openSheet(c => <WorkoutDateEdit w={live} close={c} />)}>{t('Change date & time')}</Button>
+    <div style={{ height: 8 }} />
+    <Button icon="clock" onClick={() => ui().openSheet(c => <WorkoutDurationEdit w={live} close={c} />)}>{t('Change duration')}</Button>
+    <div style={{ height: 8 }} />
+    <Button icon="upload" onClick={() => workoutCardSheet(live)}>{t('Workout card')}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="danger" onClick={() => confirmSheet({ title: t('Delete workout?'), message: t('This removes it from your history for good.'), confirmText: t('Delete'), danger: true, onConfirm: () => { update(s => { s.workouts = s.workouts.filter(x => !sameWorkout(x, w)) }); close(); toast(t('Workout deleted')) } })}>{t('Delete workout')}</Button>
   </>
 }
 export const workoutDetailSheet = w => ui().openSheet(close => <WorkoutDetail w={w} close={close} />)
@@ -2557,9 +2631,46 @@ function FinishSummary({ w, prs, e1prs = [], additions = [], close }) {
     <Button variant="primary" onClick={() => { close(); nav('/home') }}>{t('Nice!')}</Button>
   </div>
 }
+function saveWorkoutEdits() {
+  const A = S().active
+  if (!A?.editingWorkoutId) return
+  if (editLeftEmpty(A)) {
+    confirmSheet({
+      title: t('Delete this empty workout?'),
+      message: t('Nothing is logged in it anymore.'),
+      confirmText: t('Delete'),
+      danger: true,
+      onConfirm: () => {
+        update(s => { deleteEditedWorkout(s) })
+        useUI.getState().stopRest()
+        nav('/history')
+        toast(t('Workout deleted'))
+      },
+    })
+    return
+  }
+  if (editChangesNothing(S())) {
+    update(s => { s.active = null })
+    useUI.getState().stopRest()
+    nav('/history')
+    return
+  }
+  try {
+    update(s => { saveWorkoutEdit(s) })
+  } catch (e) {
+    const msg = String(e?.message || '')
+    toast(msg === 'Nothing logged yet' ? t('Nothing logged yet') : t('This workout was deleted on another device. Your edits are still here.'))
+    return
+  }
+  useUI.getState().stopRest()
+  nav('/history')
+  toast(t('Workout saved'))
+}
+
 export function finishWorkout() {
   const A = S().active
   if (!A) return
+  if (A.editingWorkoutId) { saveWorkoutEdits(); return }
   const done = setsDoneActive(A)
   const total = setUnitsTotal(A.entries)
   if (!done) { confirmSheet({ title: t('Nothing logged yet'), message: t('You haven’t checked off any sets. Finish the workout anyway?'), confirmText: t('Finish anyway'), onConfirm: doFinishWorkout }); return }

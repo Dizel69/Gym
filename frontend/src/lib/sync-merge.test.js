@@ -116,6 +116,13 @@ describe('mergeStates', () => {
     expect(mergeStates(A(), A()).workouts).toEqual(A().workouts)
   })
 
+  it('keeps a workout that was corrected on the older document', () => {
+    const corrected = { ...workout('w1'), _ts: 50, entries: [{ id: '0025', sets: [{ w: 80, r: 5, done: true }] }] }
+    const stale = { ...workout('w1'), entries: [{ id: '0025', sets: [{ w: 100, r: 5, done: true }] }] }
+    const m = mergeStates(base({ _ts: 20, workouts: [stale] }), base({ _ts: 10, workouts: [corrected] }))
+    expect(m.workouts[0].entries[0].sets[0].w).toBe(80)
+  })
+
   it('sorts workouts by day and start, takes the later _ts, drops _rev, does not touch inputs', () => {
     const a = A(), b = B()
     const m = mergeStates(a, b)

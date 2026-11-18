@@ -26,6 +26,7 @@ import { MUSCLE_NAME } from '../lib/muscles.js'
 import { setTrendOn, setTrendsFor, historyBefore, trendGlyph, trendLabel } from '../lib/set-trend.js'
 import { bestsFor, lastRowFor, oddValues } from '../lib/typo-check.js'
 import { nextAutoHold } from '../lib/auto-hold.js'
+import { editChangesNothing } from '../lib/session-edit.js'
 
 const SWIPE_MIN_DISTANCE = 48
 const SWIPE_AXIS_RATIO = 1.25
@@ -863,7 +864,7 @@ function ActiveWorkout() {
   // A past workout has no rest to time. A hold (plank, hang) counts itself in once the rest
   // ends, unless Settings turned that off. Reps rests end as they always have.
   const startRest = (sec, forIdx) => {
-    if (A.backfill) return
+    if (A.backfill || A.editingWorkoutId) return
     liveRest(sec, forIdx, () => {
       if (useStore.getState().S.autoHolds === false) return false
       const live = useStore.getState().S.active
@@ -1000,7 +1001,7 @@ function ActiveWorkout() {
   // Live-presence heartbeat so the admin dashboard can show who's training now. Signed-in only —
   // guests have no server session. Reads fresh state each tick so progress stays current.
   useEffect(() => {
-    if (!useStore.getState().user) return
+    if (!useStore.getState().user || useStore.getState().S.active?.editingWorkoutId) return
     let stopped = false
     const ping = active => {
       const A2 = useStore.getState().S.active
@@ -1024,21 +1025,33 @@ function ActiveWorkout() {
     }
   }, [])
 
+  const editing = !!A.editingWorkoutId
+  const leaveEdit = () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/history') }
+  const discardSession = () => {
+    if (editing) {
+      if (editChangesNothing(useStore.getState().S)) { leaveEdit(); return }
+      confirmSheet({ title: t('Discard changes?'), message: t('Your changes to this workout will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: leaveEdit })
+      return
+    }
+    confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })
+  }
+
   return <div className="narrow">
     {/* In list mode the whole session scrolls under the header, so the header (name, clock,
         set counter, discard/finish, progress) stays pinned — the one thing you want in view
         while you are somewhere in the middle of a long stack. Cards mode never scrolls far. */}
     <div className={'whdr' + (listMode ? ' stick' : '')} ref={hdrRef}>
     <div className="hdr">
-      <button className="iconbtn" aria-label={t('Discard')} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })}><Icon name="xmark" /></button>
-      <div style={{ textAlign: 'center' }}><div style={{ fontWeight: 600 }}>{A.name}</div><div className="sub">{A.backfill ? fmtDate(A.d, true) : <Elapsed start={A.start} />} · {t('{0} sets', done + '/' + total)}</div></div>
+      <button className="iconbtn" aria-label={t('Discard')} onClick={discardSession}><Icon name="xmark" /></button>
+      <div style={{ textAlign: 'center' }}><div style={{ fontWeight: 600 }}>{A.name}</div><div className="sub">{(A.backfill || editing) ? fmtDate(A.d, true) : <Elapsed start={A.start} />} · {t('{0} sets', done + '/' + total)}</div></div>
       <div className="row" style={{ gap: 4, flex: 'none' }}>
         <button className="iconbtn" aria-label={t('Workout view')} title={t('Workout view')} onClick={openViewMenu}><Icon name="more" /></button>
-        <button className="iconbtn" style={{ color: 'var(--acc)' }} aria-label={t('Finish')} onClick={finishWorkout}><Icon name="check" /></button>
+        <button className="iconbtn" style={{ color: 'var(--acc)' }} aria-label={editing ? t('Save changes') : t('Finish')} onClick={finishWorkout}><Icon name="check" /></button>
       </div>
     </div>
     <div className="wprog"><i style={{ width: (total ? done / total * 100 : 0) + '%' }} /></div>
     </div>
+    {editing && <div className="muted small" style={{ marginBottom: 8 }}>{t('Editing a saved workout — no rest timers.')}</div>}
     {A.backfill && <div className="muted small" style={{ marginBottom: 8 }}>{t('Logging a past workout — no rest timers.')}</div>}
 
     {A.entries.length ? (listMode ? (
@@ -1179,6 +1192,7 @@ function ActiveWorkout() {
     {(() => {
       const exDone = A.entries.filter(e => e.sets.length && e.sets.every(s => s.done)).length
       const allDone = A.entries.length > 0 && exDone === A.entries.length
+      if (editing) return <button className="btn primary" onClick={finishWorkout}>{t('Save changes')}</button>
       return <button className={allDone ? 'btn primary' : 'btn ghost dim'} onClick={finishWorkout}>
         {allDone ? t('Finish workout') : t('Finish workout early · {0} exercises', exDone + '/' + A.entries.length)}
       </button>

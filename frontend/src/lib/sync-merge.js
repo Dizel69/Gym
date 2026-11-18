@@ -57,6 +57,45 @@ export function unionById(newer = [], older = [], key = x => x?.id) {
 
 const workoutKey = w => (w?.id != null ? w.id : `${w?.d}|${w?.start}`)
 
+/** An edit of a saved workout records when it happened, so a newer copy of that one workout wins. */
+export function stampWorkout(w, now = Date.now()) {
+  if (w && typeof w === 'object') w._ts = now
+  return w
+}
+
+const workoutStamp = w => {
+  const n = Number(w?._ts)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+// Union by id, but a copy of the same workout that was edited later wins even when it sits in
+// the older document. A phone that only logged a new session must not put back the 100 kg the
+// other phone just corrected to 80. Workouts with no stamp keep the newer document's copy.
+function mergeWorkouts(newer = [], older = []) {
+  const olderByKey = new Map()
+  for (const w of list(older)) {
+    const k = workoutKey(w)
+    if (k != null && !olderByKey.has(k)) olderByKey.set(k, w)
+  }
+  const seen = new Set()
+  const out = []
+  for (const w of list(newer)) {
+    const k = workoutKey(w)
+    if (k == null) { out.push(w); continue }
+    if (seen.has(k)) continue
+    seen.add(k)
+    const prev = olderByKey.get(k)
+    out.push(prev && workoutStamp(prev) > workoutStamp(w) ? prev : w)
+  }
+  for (const w of list(older)) {
+    const k = workoutKey(w)
+    if (k == null || seen.has(k)) continue
+    seen.add(k)
+    out.push(w)
+  }
+  return out
+}
+
 /** A plan edit records when it happened. Health and other writes do not. */
 export function stampRoutine(routine, at = Date.now()) {
   if (routine && typeof routine === 'object') routine.editedAt = at
@@ -134,7 +173,7 @@ export function mergeStates(a, b, { prefer } = {}) {
   const n = prefer === 'a' ? a : prefer === 'b' ? b : newerOf(a, b)
   const o = n === a ? b : a
   const out = clone(n)
-  out.workouts = unionById(n.workouts, o.workouts, workoutKey).map(clone).sort(byDayStart)
+  out.workouts = mergeWorkouts(n.workouts, o.workouts).map(clone).sort(byDayStart)
   if (list(n.routines).length || list(o.routines).length) out.routines = mergeRoutines(n.routines, o.routines).map(clone)
   for (const f of ['customEx', 'equipProfiles', 'gymCards']) {
     if (list(n[f]).length || list(o[f]).length) out[f] = unionById(n[f], o[f]).map(clone)

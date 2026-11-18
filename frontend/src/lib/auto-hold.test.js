@@ -23,6 +23,12 @@ describe('next hold after a rest', () => {
     expect(nextAutoHold(A, 0, timed)).toBe(null)
   })
 
+  it('does not start a hold while a saved workout is being corrected', () => {
+    const A = active([{ sets: [hold(45)] }])
+    A.editingWorkoutId = 'workout'
+    expect(nextAutoHold(A, 0, () => true)).toBe(null)
+  })
+
   it('starts a hold that follows a finished reps exercise', () => {
     const A = active([{ sets: [reps(true)] }, { sets: [hold(15)] }])
     expect(nextAutoHold(A, 0, idx => idx === 1)).toEqual({ idx: 1, i: 0, sec: 15 })

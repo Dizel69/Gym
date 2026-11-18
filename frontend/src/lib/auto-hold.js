@@ -11,7 +11,7 @@ const DEFAULT_HOLD_SEC = 45
  */
 export function nextAutoHold(active, fromIdx, isTimed) {
   const entries = active?.entries
-  if (!entries?.length || active.backfill) return null
+  if (!entries?.length || active.backfill || active.editingWorkoutId) return null
   const start = Number.isInteger(fromIdx) && fromIdx >= 0 ? fromIdx : 0
   for (let idx = start; idx < entries.length; idx++) {
     const sets = entries[idx]?.sets || []
