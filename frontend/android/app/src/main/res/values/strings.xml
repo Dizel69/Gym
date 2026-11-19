@@ -4,4 +4,13 @@
     <string name="title_activity_main">Gym</string>
     <string name="package_name">app.gym.tracker</string>
     <string name="custom_url_scheme">app.gym.tracker</string>
+    <string name="widget_board_name">openGym</string>
+    <string name="widget_board_desc">Streak, weight goal and the next workout</string>
+    <string name="widget_streak_name">Streak</string>
+    <string name="widget_streak_desc">Weeks in a row</string>
+    <string name="widget_goal_name">Weight goal</string>
+    <string name="widget_goal_desc">How far is left</string>
+    <string name="widget_next_name">Next workout</string>
+    <string name="widget_next_desc">What is coming up</string>
+    <string name="widget_open">Open openGym</string>
 </resources>

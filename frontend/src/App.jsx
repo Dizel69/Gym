@@ -188,6 +188,13 @@ function Shell() {
 export default function App() {
   const boot = useStore(s => s.boot)
   useEffect(() => { boot() }, [boot])
+  useEffect(() => {
+    if (!MOBILE) return
+    let stop = () => {}
+    let gone = false
+    import('./lib/widgets.js').then(m => m.startWidgetSync({ useStore })).then(fn => { if (gone) fn(); else stop = fn })
+    return () => { gone = true; stop() }
+  }, [])
   // Android system back — sheet, then page, then press-again-to-exit (see lib/back.js)
   useEffect(() => {
     let stop = null, gone = false

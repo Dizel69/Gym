@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_board_name">openGym</string>
+    <string name="widget_board_desc">Серия, цель веса и следующая тренировка</string>
+    <string name="widget_streak_name">Серия</string>
+    <string name="widget_streak_desc">Сколько недель подряд</string>
+    <string name="widget_goal_name">Цель веса</string>
+    <string name="widget_goal_desc">Сколько осталось до цели</string>
+    <string name="widget_next_name">Следующая тренировка</string>
+    <string name="widget_next_desc">Что дальше по плану</string>
+    <string name="widget_open">Открой openGym</string>
+</resources>
