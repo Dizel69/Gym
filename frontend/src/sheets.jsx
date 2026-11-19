@@ -48,6 +48,7 @@ import { swapSuggestions } from './lib/exercise-substitutes.js'
 import { buildSessionEntries } from './lib/session-start.js'
 import { buildCombinedEntries, deriveSessionName } from './lib/session-merge.js'
 import { workoutsOn, backfillStart, backfillEnd, completeBackfill } from './lib/backfill.js'
+import { repeatSessionEntries } from './lib/session-repeat.js'
 import { editCompletedSession, saveWorkoutEdit, editLeftEmpty, editChangesNothing, deleteEditedWorkout } from './lib/session-edit.js'
 import { moveWorkout, setWorkoutDuration, durationMinOf, startTimeOf, endsInFuture, sameWorkout, MAX_DURATION_MIN } from './lib/workout-date.js'
 
@@ -1976,6 +1977,31 @@ function WorkoutCardPreview({ w }) {
 }
 export const workoutCardSheet = w => ui().openSheet(close => <WorkoutCardPreview w={w} close={close} />)
 
+// A saved workout's exercises as a new session dated today. The weigh-in asks first, the same
+// way starting any workout does.
+export function repeatWorkout(w, close) {
+  const st = S()
+  if (st.active) { toast(t('Finish your current workout first')); return }
+  const { entries, skipped } = repeatSessionEntries(st, w)
+  if (!entries.length) { toast(t('Nothing to repeat. Its exercises no longer exist.')); return }
+  const go = bw => {
+    if (S().active) { toast(t('Finish your current workout first')); return }
+    update(s => {
+      s.active = {
+        id: uid(), d: todayISO(), start: Date.now(), routineIds: [],
+        name: w.name || t('Freestyle'), bw: bw || null, cur: 0, entries,
+        workoutView: s.workoutView || 'cards',
+      }
+    })
+    useUI.getState().stopRest()
+    nav('/workout')
+    if (skipped) toast(t('{0} no longer exist and were left out.', skipped))
+  }
+  if (close) close()
+  if (st.weighIn === false) { go(null); return }
+  bwSheet({ required: true, onDone: go })
+}
+
 function openWorkoutEditor(w, close) {
   if (S().active) { toast(t('Finish your current workout first')); return }
   try {
@@ -2136,6 +2162,8 @@ function WorkoutDetail({ w, close }) {
       onFocus={onNoteFocus} onChange={e => setNote(e.target.value)} onBlur={saveNote} />
     <div style={{ height: 14 }} />
     <Button icon="pencil" onClick={() => openWorkoutEditor(live, close)}>{t('Edit workout')}</Button>
+    <div style={{ height: 8 }} />
+    <Button icon="history" disabled={!!st.active} onClick={() => repeatWorkout(live, close)}>{t('Repeat today')}</Button>
     <div style={{ height: 8 }} />
     <Button icon="calendar" onClick={() => ui().openSheet(c => <WorkoutDateEdit w={live} close={c} />)}>{t('Change date & time')}</Button>
     <div style={{ height: 8 }} />

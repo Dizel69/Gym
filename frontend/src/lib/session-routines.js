@@ -111,6 +111,16 @@ const SESSION_ONLY = ['planned', 'plan', 'carried', 'rid', 'noProg', 'muscleSnap
 
 const sessionEntries = session => Array.isArray(session?.entries) ? session.entries : []
 
+// The exercises of a finished session, in its order, as a routine would store them. A repeat
+// builds today's rows from this list. The source workout is not changed.
+export function routineFromSession(session, name = session?.name, routines = []) {
+  const byId = new Map((Array.isArray(routines) ? routines : []).filter(r => r?.id != null).map(r => [r.id, r]))
+  const ex = groupIds(sessionEntries(session).filter(entry => entry?.sets?.length)
+    .map(entry => copiedEntry(entry, byId.get(entry?.rid))))
+  if (!ex.length) throw new Error('no exercises')
+  return { id: uid(), name: String(name || 'Workout').trim() || 'Workout', ex }
+}
+
 // An exercise added in the middle of a routine's session is stamped `addedInSession`.
 // Finishing offers to keep it in that routine. Nothing is written unless the offer is taken.
 // A swap keeps its slot and is not an addition. A skipped exercise was not part of the workout.
