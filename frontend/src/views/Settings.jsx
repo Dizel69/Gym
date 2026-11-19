@@ -22,6 +22,9 @@ import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '.
 import { reviewYears, yearReview } from '../lib/year-review.js'
 import { yearReviewSheet } from '../components/YearReview.jsx'
 import { muscleTargetsSheet } from '../components/WeeklySets.jsx'
+import { readForgotten, writeForgotten } from '../lib/forgotten-workout.js'
+import { starterBands, newBandId, BAND_COLORS, bandsOf } from '../lib/bands.js'
+import { EVERY_CHOICES, deloadCycleOf, setDeloadEvery, setDeloadAuto } from '../lib/deload-cycle.js'
 
 function YearArchive({ S }) {
   const years = reviewYears(S)
@@ -49,6 +52,8 @@ export default function Settings() {
   const fileRef = useRef(null)
   const importRef = useRef(null)
   const wakeOK = wakeLockSupported()
+  const [forgotten, setForgotten] = useState(() => readForgotten())
+  const openBands = () => useUI.getState().openSheet(close => <BandEditor close={close} />)
 
   // Two honest choices on a unit switch (issue #22): convert the numbers, or keep them and only
   // change the label — the old behaviour, still right for someone who logged in lb all along
@@ -310,6 +315,26 @@ export default function Settings() {
       <SelectRow icon="timer" iconTint="var(--orange)" title={t('Rest timer')}
         value={S.restSec} onChange={v => update(s => { s.restSec = v })}
         options={[{ value: 0, label: t('Off') }, ...[60, 90, 120, 150, 180].map(v => ({ value: v, label: v + 's' }))]} />
+      <Row icon="link" iconTint="var(--orange)" title={t('Resistance bands')}
+        subtitle={t('Name, colour, and resistance if you know it.')} accessory="chevron" onClick={openBands} />
+      <SelectRow icon="calendar" iconTint="var(--teal)" title={t('Deload weeks')}
+        subtitle={t('Fewer sets, the same weights. That week does not move your plan.')}
+        value={deloadCycleOf(S).every} onChange={v => update(s => setDeloadEvery(s, Number(v)))}
+        options={[{ value: 0, label: t('Off') }, ...EVERY_CHOICES.filter(n => n).map(n => ({ value: n, label: t('Every {0} weeks', n) }))]} />
+      <Row icon="chartLine" iconTint="var(--blue)" title={t('Suggest a deload')}
+        subtitle={t('When the same lifts come up short two weeks running.')}>
+        <Switch checked={deloadCycleOf(S).auto} onChange={v => update(s => setDeloadAuto(s, v))} />
+      </Row>
+      <SelectRow icon="timer" iconTint="var(--orange)" title={t('Forgotten workout')}
+        subtitle={t('Asks if you are still training after a quiet spell.')}
+        value={forgotten.askMin} onChange={v => setForgotten(writeForgotten({ ...forgotten, askMin: Number(v) }))}
+        options={[{ value: 0, label: t('Off') }, { value: 30, label: t('30 min') }, { value: 45, label: t('45 min') }, { value: 60, label: t('60 min') }, { value: 90, label: t('90 min') }]} />
+      <SelectRow icon="timer" iconTint="var(--grey)" title={t('Then wait')}
+        subtitle={t('Silence after the question finishes the workout at the last set plus its rest.')}
+        value={forgotten.graceMin} onChange={v => setForgotten(writeForgotten({ ...forgotten, graceMin: Number(v) }))}
+        options={[{ value: 2, label: t('2 min') }, { value: 5, label: t('5 min') }, { value: 10, label: t('10 min') }]} />
+      <Row icon="camera" iconTint="var(--pink)" title={t('Progress photos')}
+        subtitle={t('Kept on this device. Nothing is uploaded.')} accessory="chevron" onClick={() => nav('/photos')} />
       {/* Default for a rest-pause burst added live on a plain set — a planned exercise's own
           "Rest (s)" (in its Intensifier config) overrides this, same as the main rest timer
           is the fallback whenever an exercise has no progression rule of its own. */}
@@ -780,5 +805,48 @@ function RegisterInline({ close, setUser, pushState, pullState, toast }) {
       <div className="dim small" style={{ marginTop: 6 }}>{t('This app is invite-only — enter the code you were given.')}</div>
     </>}
     <div style={{ height: 12 }} /><Button variant="primary" onClick={go}>{t('Create passkey')}</Button>
+  </>
+}
+
+function BandEditor({ close }) {
+  const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
+  const [name, setName] = useState('')
+  const [kg, setKg] = useState('')
+  const [color, setColor] = useState(BAND_COLORS[0])
+  const bands = bandsOf(S)
+  const add = () => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    update(s => {
+      const list = bandsOf(s)
+      if (list.length >= 12) return
+      const row = { id: newBandId(list), name: trimmed.slice(0, 24), color }
+      const n = Number(String(kg).replace(',', '.'))
+      if (n > 0) row.kg = Math.round(n * 100) / 100
+      s.bands = [...list, row]
+    })
+    setName('')
+    setKg('')
+  }
+  return <>
+    <h3>{t('Resistance bands')}</h3>
+    <p className="muted small">{t('Lightest first. A set can name up to four.')}</p>
+    {!bands.length && <Button onClick={() => update(s => { s.bands = starterBands() })}>{t('Use the usual five')}</Button>}
+    <div className="list">
+      {bands.map(b => <div key={b.id} className="item">
+        <span style={{ width: 14, height: 14, borderRadius: 99, background: b.color, display: 'inline-block' }} />
+        <div className="grow">{b.name}{b.kg ? ` · ${b.kg} kg` : ''}</div>
+        <button className="iconbtn" aria-label={t('Delete')} onClick={() => update(s => { s.bands = bandsOf(s).filter(x => x.id !== b.id) })}><Icon name="xmark" /></button>
+      </div>)}
+    </div>
+    <input className="input" placeholder={t('Name')} value={name} maxLength={24} onChange={e => setName(e.target.value)} />
+    <div className="row" style={{ gap: 6, margin: '8px 0' }}>
+      {BAND_COLORS.map(c => <button key={c} type="button" aria-label={c} onClick={() => setColor(c)} style={{ width: 22, height: 22, borderRadius: 99, background: c, border: color === c ? '2px solid var(--text)' : '2px solid transparent' }} />)}
+    </div>
+    <input className="input" placeholder={t('Resistance, kg')} value={kg} onChange={e => setKg(e.target.value)} inputMode="decimal" />
+    <div style={{ height: 12 }} />
+    <Button variant="primary" onClick={add}>{t('Add')}</Button>
+    <Button variant="ghost" onClick={close}>{t('Close')}</Button>
   </>
 }

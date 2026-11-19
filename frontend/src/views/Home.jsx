@@ -18,6 +18,9 @@ import { YearHomeCard } from '../components/YearReview.jsx'
 import { WeeklySetsHomeLine } from '../components/WeeklySets.jsx'
 import MonthGoals from '../components/MonthGoals.jsx'
 import { FlameHat, HolidayBanner } from '../components/HolidayDecor.jsx'
+import { isDeloadDay, nextDeloadWeek, deloadSuggestion, pushBack, skipDeload, addDeload, dismissSuggestion } from '../lib/deload-cycle.js'
+import { readReopen, clearReopen } from '../lib/forgotten-workout.js'
+import { editCompletedSession } from '../lib/session-edit.js'
 
 function WaistCard({ S }) {
   const nav = useNavigate()
@@ -54,6 +57,7 @@ function WaistCard({ S }) {
 export default function Home() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
   const user = useStore(s => s.user)
   const [weekOffset, setWeekOffset] = useState(0)
 
@@ -107,6 +111,8 @@ export default function Home() {
     </div>
 
     <HolidayBanner />
+    <DeloadCard S={S} update={update} />
+    <ReopenCard S={S} update={update} nav={nav} />
 
     <div className="card">
       <div className="row between" style={{ marginBottom: 8 }}>
@@ -236,5 +242,38 @@ export default function Home() {
     </div>
 
     {S.homeMuscleSets === true && <WeeklySetsHomeLine S={S} onOpen={() => nav('/stats')} />}
+  </div>
+}
+
+function DeloadCard({ S, update }) {
+  const today = isDeloadDay(S)
+  const next = nextDeloadWeek(S)
+  const idea = deloadSuggestion(S)
+  if (!today && !next && !idea) return null
+  const wk = today ? weekKey(todayISO(), weekStartOf(S)) : (idea?.week || next)
+  return <div className="card" style={{ marginBottom: 12 }}>
+    <div style={{ fontWeight: 600 }}>{today ? t('Deload week') : idea ? t('A deload week?') : t('Deload week coming')}</div>
+    <p className="muted small">{today ? t('Fewer sets, the same weights. This week does not move your plan.') : t('The numbers have been short two weeks running.')}</p>
+    <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+      {idea && <Button onClick={() => update(s => addDeload(s, idea.week))}>{t('Make it a deload')}</Button>}
+      {wk && <Button variant="ghost" onClick={() => update(s => pushBack(s, wk))}>{t('Push it back a week')}</Button>}
+      {wk && <Button variant="ghost" onClick={() => update(s => { if (idea) dismissSuggestion(s); else skipDeload(s, wk) })}>{t('Skip this one')}</Button>}
+    </div>
+  </div>
+}
+
+function ReopenCard({ S, update, nav }) {
+  const [, bump] = useState(0)
+  if (S.active) return null
+  const mark = readReopen()
+  const w = mark && (S.workouts || []).find(x => x.id === mark.id)
+  if (!w) return null
+  return <div className="card" style={{ marginBottom: 12 }}>
+    <div style={{ fontWeight: 600 }}>{t('Open that workout again')}</div>
+    <p className="muted small">{t('You can add to it until a day has passed.')}</p>
+    <div className="row" style={{ gap: 8 }}>
+      <Button onClick={() => { update(s => { editCompletedSession(s, w) }); clearReopen(); nav('/workout') }}>{t('Open')}</Button>
+      <Button variant="ghost" onClick={() => { clearReopen(); bump(n => n + 1) }}>{t('Dismiss')}</Button>
+    </div>
   </div>
 }

@@ -7,6 +7,7 @@ import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { uid } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { supersetUnits, moveSupersetUnit, cleanupSg, exLine, defaultConfig } from '../lib/history.js'
+import { defaultCircuit, setCircuit, rememberRegular, restoreRegular, roundsPerStation, circuitOf } from '../lib/circuit.js'
 import { Thumb } from '../components/Media.jsx'
 import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet } from '../sheets.jsx'
 import { stampRoutine } from '../lib/sync-merge.js'
@@ -23,6 +24,28 @@ export const ROUTINE_LONG_PRESS_MS = 380
 export const ROUTINE_DRAG_SLOP = 8
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value))
+
+function routineTypeOf(ex) {
+  const current = circuitOf(ex, (ex || []).map((_, i) => i))
+  if (!current) return ''
+  if (current.program === 'runwalk') return 'runwalk'
+  if (current.mode === 'intervals' && current.work === 20 && current.rest === 10 && current.rounds === 8) return 'tabata'
+  return current.mode
+}
+
+function applyRoutineType(ex, mode) {
+  if (!ex?.length) return
+  if (!mode) { restoreRegular(ex); cleanupSg(ex); return }
+  rememberRegular(ex)
+  const sg = ex.find(e => e.sg && e.sgCircuit)?.sg || ('sg-' + Math.random().toString(36).slice(2, 8))
+  const cfg = defaultCircuit(mode)
+  const rounds = roundsPerStation(cfg, ex.length) || 1
+  for (const e of ex) {
+    e.sg = sg
+    if ((Number(e.sets) || 1) < rounds) e.sets = rounds
+  }
+  setCircuit(ex, sg, cfg)
+}
 
 // Slots are defined after removing the source unit, so a grouped run can never be split.
 export function reorderRoutineUnit(exercises, sourceIndex, targetSlot) {
@@ -370,6 +393,20 @@ export default function RoutineEdit() {
         stampRoutine(routine)
       }))}><Icon name={glyphOf(r.emoji)} /></button>
     </div>
+
+    <SelectRow icon="timer" iconTint="var(--orange)" title={t('Routine type')}
+      subtitle={t('A circuit, AMRAP, EMOM, intervals or a run walks the whole routine on one clock.')}
+      value={routineTypeOf(r.ex)}
+      onChange={v => edit(ex => applyRoutineType(ex, v))}
+      options={[
+        { value: '', label: t('Regular') },
+        { value: 'circuit', label: t('Circuit') },
+        { value: 'amrap', label: t('AMRAP') },
+        { value: 'emom', label: t('EMOM') },
+        { value: 'tabata', label: t('Tabata') },
+        { value: 'intervals', label: t('Intervals') },
+        { value: 'runwalk', label: t('Run / walk') },
+      ]} />
 
     <div className="sect-b" style={{ marginBottom: 16 }}>
       <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}

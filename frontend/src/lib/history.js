@@ -1,5 +1,6 @@
 // Pure helpers over the state object S (ported 1:1 from the vanilla app).
 import { todayISO, isoOf, weekKey, weekStartOf, fmtNum } from './format.js'
+import { bandText, knownBands } from './bands.js'
 import { cycleOn, scheduleFor } from './week-cycle.js'
 import { isCardio, isBodyweightEq, isAssisted, betterWeight } from './exercises.js'
 import { phaseForSet, modeForSet, modeForEntry, isWarmupRow, normalizeMode, completedVolumeOf, nextDropWeight, splitBurstReps, makeSideSet, isSideSet, syncSideAggregate } from './workout-model.js'
@@ -106,7 +107,7 @@ const effortTail = s => {
 
 // One-line summary of a logged set. `cfg` carries the mode when the caller has it (a routine
 // entry or a workout entry); passing an id alone keeps the old body-part behaviour.
-export function setLabel(id, s, cfg) {
+export function setLabel(id, s, cfg, bands) {
   const c = cfg || { id }
   let mode = modeOf(c)
   // A set saved by an older build carries no target with it; the set's own fields still say what
@@ -132,7 +133,18 @@ export function setLabel(id, s, cfg) {
   }
   // Bodyweight reads as what you did — "12", or "+10 × 12" once there is a belt involved —
   // rather than "0×12", which says a set was performed with no weight and means nothing.
-  return oneSide(s) + effortTail(s)
+  const names = bandNames(s, bands)
+  const base = oneSide(s) + effortTail(s)
+  if (!names) return base
+  if (!(s.w > 0)) return `${s.r || 0} × ${names}` + effortTail(s)
+  return base + ' · ' + names
+}
+
+function bandNames(s, bands) {
+  const ids = Array.isArray(s?.bands) ? s.bands.filter(Boolean) : []
+  const list = bands || knownBands()
+  if (!ids.length || !list.length) return ''
+  return bandText(ids, list)
 }
 // Default config for a freshly added exercise.
 export function defaultConfig(id, mode) {
@@ -161,7 +173,10 @@ export function exLine(cfg, unit) {
 // Drop superset ids that no longer have an adjacent partner (after unlink/reorder/remove).
 export function cleanupSg(ex) {
   ex.forEach((e, i) => {
-    if (e.sg && !(ex[i - 1]?.sg === e.sg || ex[i + 1]?.sg === e.sg)) delete e.sg
+    if (!e?.sg) return
+    const neighbor = ex[i - 1]?.sg === e.sg || ex[i + 1]?.sg === e.sg
+    // A circuit of one exercise keeps its group: that is how a one-station EMOM is stored.
+    if (!neighbor && !e.sgCircuit) delete e.sg
   })
 }
 

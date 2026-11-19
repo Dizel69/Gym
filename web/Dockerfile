@@ -8,10 +8,10 @@
 # specific native binaries, which is what breaks `vite build` with unrelated-looking
 # module-resolution errors.
 FROM --platform=$BUILDPLATFORM node:22-alpine AS build
-# The frontend sits at /app/frontend, not /app: the Coach's runtime-neutral core lives in
-# api/coach/core and is imported from frontend/src as ../../../api/coach/core/*, so the two
-# have to keep the same relative position they have in the repository. Copying frontend/ alone
-# is exactly what made the v1.2.15 web image fail to build.
+# The frontend sits at /app/frontend, not /app: modules outside frontend/ are imported from
+# frontend/src as ../../../api/… (coach/core/*, routine-sync.js), so they have to keep the same
+# relative position they have in the repository. Copying frontend/ alone is exactly what made
+# the v1.2.15 web image fail to build; leaving routine-sync.js out fails the same way.
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 # --ignore-scripts: the web image only needs `vite build`; the one heavy postinstall in this tree
@@ -19,6 +19,7 @@ COPY frontend/package.json frontend/package-lock.json* ./
 # timed out on the shared runners — a lockfile-ignoring `npm install` fallback is no answer to that.
 RUN npm ci --ignore-scripts
 COPY api/coach/core/ /app/api/coach/core/
+COPY api/routine-sync.js /app/api/routine-sync.js
 COPY frontend/ ./
 RUN npm run build
 

@@ -34,6 +34,9 @@ import { sessionPrescription, writeLinearPlanWeights, applyPrescription, policyF
 import { normalizeRepRange } from './lib/rep-range.js'
 import { MOBILE, shareExport, printHtml } from './lib/mobile.js'
 import { buildCompletedWorkout } from './lib/finish-workout.js'
+import { setCircuit } from './lib/circuit.js'
+import { saveReopen } from './lib/forgotten-workout.js'
+import { nextBandsUp, setBandsOf, bandText } from './lib/bands.js'
 import { routineAdditions, addToRoutine } from './lib/session-routines.js'
 import { addWeighIn, allReadings, dailyModeOf, readingTime, removeWeighIn, settleAll, timeOf } from './lib/weigh-ins.js'
 import { entryTimes } from './lib/exercise-time.js'
@@ -876,7 +879,7 @@ function ExerciseHistory({ exId }) {
       {h.sessions.map(s => <div key={s.id} className="item" style={{ alignItems: 'flex-start' }}>
         <div className="grow">
           <div className="tt">{fmtDate(s.d, true)} {s.pr && <span className="pr"><Icon name="trophy" />PR</span>}</div>
-          <div className="ss">{s.sets.map(x => setLabel(exId, x, s.target)).join('  ·  ')}</div>
+          <div className="ss">{s.sets.map(x => setLabel(exId, x, s.target, st.bands)).join('  ·  ')}</div>
           {tail(s) && <div className="small dim" style={{ marginTop: 3 }}>{tail(s)}</div>}
         </div>
         {s.value != null && s.value > 0 && <b className="accent nocap" style={{ whiteSpace: 'nowrap' }}>{fmtNum(s.value)} {unit}</b>}
@@ -2113,7 +2116,7 @@ function WorkoutDetail({ w, close }) {
     const trends = last ? setTrendsFor(e, last) : []
     const shown = (e.sets || []).map((s, j) => [s, j]).filter(([s]) => hasCompletedWork(s))
     if (!shown.length) return t('no sets')
-    const mark = (s, j) => <span className="wd-set">{setLabel(e.id, s, e.target)}{trends[j] && <span className={'settrend inline ' + (trends[j].dir > 0 ? 'up' : trends[j].dir < 0 ? 'down' : 'same')} role="img" aria-label={trendLabel(trends[j], st.unit)} title={trendLabel(trends[j], st.unit)}>{trendGlyph(trends[j])}</span>}</span>
+    const mark = (s, j) => <span className="wd-set">{setLabel(e.id, s, e.target, st.bands)}{trends[j] && <span className={'settrend inline ' + (trends[j].dir > 0 ? 'up' : trends[j].dir < 0 ? 'down' : 'same')} role="img" aria-label={trendLabel(trends[j], st.unit)} title={trendLabel(trends[j], st.unit)}>{trendGlyph(trends[j])}</span>}</span>
     if (!shown.some(([s]) => (s.note || '').trim())) {
       return shown.map(([s, j], k) => <span key={j}>{k > 0 && '  ·  '}{mark(s, j)}</span>)
     }
@@ -2695,17 +2698,19 @@ function saveWorkoutEdits() {
   toast(t('Workout saved'))
 }
 
-export function finishWorkout() {
+export function finishWorkout(opts = {}) {
   const A = S().active
   if (!A) return
   if (A.editingWorkoutId) { saveWorkoutEdits(); return }
   const done = setsDoneActive(A)
   const total = setUnitsTotal(A.entries)
-  if (!done) { confirmSheet({ title: t('Nothing logged yet'), message: t('You haven’t checked off any sets. Finish the workout anyway?'), confirmText: t('Finish anyway'), onConfirm: doFinishWorkout }); return }
-  if (done < total) { confirmSheet({ title: t('Finish early?'), message: t(total - done === 1 ? '{0} set still unchecked. Finish the workout now?' : '{0} sets still unchecked. Finish the workout now?', total - done), confirmText: t('Finish workout'), onConfirm: doFinishWorkout }); return }
-  doFinishWorkout()
+  const go = () => doFinishWorkout(opts.end)
+  if (opts.force) { go(); return }
+  if (!done) { confirmSheet({ title: t('Nothing logged yet'), message: t('You haven’t checked off any sets. Finish the workout anyway?'), confirmText: t('Finish anyway'), onConfirm: go }); return }
+  if (done < total) { confirmSheet({ title: t('Finish early?'), message: t(total - done === 1 ? '{0} set still unchecked. Finish the workout now?' : '{0} sets still unchecked. Finish the workout now?', total - done), confirmText: t('Finish workout'), onConfirm: go }); return }
+  go()
 }
-function doFinishWorkout() {
+function doFinishWorkout(endAt) {
   const st = S()
   const A = st.active
   if (!A) return
@@ -2724,12 +2729,21 @@ function doFinishWorkout() {
     if (rec && !prs.includes(e.id)) e1prs.push({ id: e.id, ...rec })
   })
   const w = buildCompletedWorkout(A, {
-    end: past ? backfillEnd(A) : Date.now(),
+    end: past ? backfillEnd(A) : (endAt || Date.now()),
     prs,
     snapshotFor: e => EXIDX[e.id]?.custom ? exerciseMuscleSnapshot(EXIDX[e.id]) : null,
   })
   w.vol = workoutVolume(w)
+  if (Array.isArray(A.circuits) && A.circuits.length) w.circuits = A.circuits
+  if (endAt && !past) saveReopen(w.id)
   const additions = past ? [] : routineAdditions(A, st.routines)
+  for (const e of A.entries || []) {
+    const work = (e.sets || []).filter(s => s.done && !isWarmupRow(s) && s.bands?.length)
+    const top = Number(e.target?.reps) || 0
+    if (!work.length || !top || !work.every(s => (Number(s.r) || 0) >= top)) continue
+    const nxt = nextBandsUp(setBandsOf(work[work.length - 1]), st.bands)
+    if (nxt) { useUI.getState().toast(t('Next time: {0}', bandText(nxt, st.bands))); break }
+  }
   update(s => {
     if (past) {
       s.workouts = completeBackfill(s.workouts, A, w)
@@ -2740,6 +2754,10 @@ function doFinishWorkout() {
       })
       s.workouts.push(w)
       writeLinearPlanWeights(s, w)
+    }
+    for (const a of A.circuitAdvances || []) {
+      const routine = (s.routines || []).find(r => r.id === a.rid)
+      if (routine) setCircuit(routine.ex, a.sg, a.to)
     }
     s.active = null
   })

@@ -6,6 +6,7 @@ import { bindUI } from './components/ui.jsx'
 import { ACCENTS, setWeightDecimals } from './lib/format.js'
 import { setLang, useLang } from './lib/i18n.js'
 import { setPlayOnSilent } from './lib/sound.js'
+import { setKnownBands } from './lib/bands.js'
 import { setNav } from './lib/nav.js'
 import { initBackButton } from './lib/back.js'
 import { useWakeLock } from './lib/wakelock.js'
@@ -36,6 +37,7 @@ import History from './views/History.jsx'
 import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import Settings from './views/Settings.jsx'
+import Photos from './views/Photos.jsx'
 import Admin from './views/Admin.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
@@ -67,6 +69,7 @@ function Shell() {
   // iOS: whether timer sounds get past the ring/silent switch (Settings → Sounds). Page-level,
   // so it is applied here on load and on change rather than at each beep.
   useEffect(() => { setPlayOnSilent(!!S.soundOnSilent) }, [S.soundOnSilent])
+  useEffect(() => { setKnownBands(S.bands) }, [S.bands])
   const isGuest = useStore(s => s.isGuest())
   const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes
@@ -162,6 +165,7 @@ function Shell() {
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/photos" element={<Photos />} />
               {/* The Coach screens gate themselves on the instance config; the routes exist
                   unconditionally so a deep link from a notification lands somewhere sane
                   rather than on the catch-all. */}

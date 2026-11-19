@@ -27,6 +27,13 @@ import { setTrendOn, setTrendsFor, historyBefore, trendGlyph, trendLabel } from 
 import { bestsFor, lastRowFor, oddValues } from '../lib/typo-check.js'
 import { nextAutoHold } from '../lib/auto-hold.js'
 import { editChangesNothing } from '../lib/session-edit.js'
+import { MOBILE } from '../lib/mobile.js'
+import { bandText, setBandsOf, bandsOf, toggleSetBand, starterBands } from '../lib/bands.js'
+import { circuitOf } from '../lib/circuit.js'
+import { decideForgotten, readForgotten, honestEnd } from '../lib/forgotten-workout.js'
+import { showLiveCard, clearLiveCard } from '../lib/live-glance.js'
+import { TempoGuide } from '../components/TempoGuide.jsx'
+import { CircuitPlayer } from '../components/CircuitPlayer.jsx'
 
 const SWIPE_MIN_DISTANCE = 48
 const SWIPE_AXIS_RATIO = 1.25
@@ -243,6 +250,8 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
       actions: [
         !warm && mode === 'reps' && !isRestPauseSet(s) && { icon: 'arrowDown', label: t('Drop set'), sub: t('+ Drop'), onClick: () => addDropRow(i) },
         !warm && mode === 'reps' && !isDropSet(s) && { icon: 'bolt', label: t('Rest-pause burst'), sub: t('+ Burst'), onClick: () => addBurstRow(i) },
+        { icon: 'timer', label: t('Tempo'), sub: s.tempo || entry.target?.tempo || undefined, onClick: () => useUI.getState().openSheet(close => <TempoEditor entryIdx={entryIdx} setIdx={i} close={close} />) },
+        { icon: 'link', label: t('Bands'), sub: setBandsOf(s).length ? bandText(setBandsOf(s), bandsOf(S)) : undefined, onClick: () => useUI.getState().openSheet(close => <BandPicker entryIdx={entryIdx} setIdx={i} exerciseId={entry.id} close={close} />) },
         { icon: 'trash', label: t('Remove this set'), danger: true, disabled: entry.sets.length <= 1, onClick: () => onRemoveSetAt(i) },
       ],
     })
@@ -542,6 +551,12 @@ function ActiveWorkout() {
   const listMode = workoutView === 'list' || workoutView === 'compact'
   const dense = workoutView === 'compact'
   const wc = workoutControls(S)
+  const [player, setPlayer] = useState(null)
+  const askedRef = useRef(0)
+  const touchRef = useRef(Date.now())
+  const liveTarget = useRef(null)
+  const toggleRef = useRef(null)
+  const timer = useUI(s => s.timer)
   // Superset flow: center the actionable row when completing a set moves to the partner or
   // back to the first exercise of the next round. Entry-bound maps keep repeated exercise IDs
   // distinct, while each rendered set index identifies the existing row within that entry.
@@ -1033,8 +1048,102 @@ function ActiveWorkout() {
       confirmSheet({ title: t('Discard changes?'), message: t('Your changes to this workout will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: leaveEdit })
       return
     }
-    confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })
+    confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); clearLiveCard(); nav('/home') } })
   }
+
+  toggleRef.current = toggle
+  useEffect(() => {
+    const mark = () => { touchRef.current = Date.now() }
+    window.addEventListener('pointerdown', mark)
+    return () => window.removeEventListener('pointerdown', mark)
+  }, [])
+  useEffect(() => {
+    const id = setInterval(() => {
+      const fresh = useStore.getState().S.active
+      if (!fresh || fresh.editingWorkoutId || fresh.backfill) return
+      const decision = decideForgotten({
+        A: fresh,
+        prefs: readForgotten(),
+        askedAt: askedRef.current,
+        resting: !!useUI.getState().timer,
+        restSec: useStore.getState().S.restSec,
+        activeAt: touchRef.current,
+      })
+      if (decision.state === 'ask') {
+        if (askedRef.current) return
+        askedRef.current = Date.now()
+        confirmSheet({
+          title: t('Still training?'),
+          message: t('Nothing has been logged for a while.'),
+          confirmText: t('Keep going'),
+          cancelText: t('Finish'),
+          onConfirm: () => { touchRef.current = Date.now(); askedRef.current = 0 },
+          onCancel: () => finishWorkout({ force: true, end: honestEnd(fresh, { restSec: useStore.getState().S.restSec }) }),
+        })
+      } else if (decision.state === 'end') {
+        askedRef.current = 0
+        finishWorkout({ force: true, end: decision.endAt })
+      } else askedRef.current = 0
+    }, 20000)
+    return () => clearInterval(id)
+  }, [])
+  useEffect(() => {
+    if (!MOBILE) return undefined
+    window.__opengymLive = (action) => {
+      const live = useStore.getState().S.active
+      const target = liveTarget.current
+      if (!live || !target) return
+      if (action === 'log') {
+        const set = live.entries[target.idx]?.sets[target.i]
+        if (!set || set.done) return
+        toggleRef.current?.(target.idx, target.i)
+      } else if (action === 'weight' || action === 'reps') {
+        update(s => {
+          const row = s.active?.entries[target.idx]?.sets[target.i]
+          if (!row || row.done) return
+          if (action === 'weight') row.w = Math.max(0, (Number(row.w) || 0) + defaultIncrement(s.active.entries[target.idx].id, s.unit))
+          else row.r = (Number(row.r) || 0) + 1
+        })
+      } else if (action === 'rest') useUI.getState().addRest(15)
+      else if (action === 'pause') {
+        update(s => {
+          if (!s.active) return
+          if (s.active.pausedAt) { s.active.start = (Number(s.active.start) || Date.now()) + (Date.now() - s.active.pausedAt); delete s.active.pausedAt }
+          else { s.active.pausedAt = Date.now(); useUI.getState().stopRest() }
+        })
+      }
+    }
+    return () => { delete window.__opengymLive; clearLiveCard() }
+  }, [update])
+  useEffect(() => {
+    if (!MOBILE) return undefined
+    let idx = 0, i = 0, found = false
+    for (let e = 0; e < A.entries.length && !found; e++) {
+      const j = (A.entries[e].sets || []).findIndex(s => !s.done)
+      if (j >= 0) { idx = e; i = j; found = true }
+    }
+    liveTarget.current = found ? { idx, i } : null
+    const entry = A.entries[idx]
+    const set = entry?.sets?.[i]
+    const resting = !!timer && !A.pausedAt
+    const who = exerciseNameFor(exOr(entry?.id))
+    const title = A.pausedAt ? t('Paused') : resting ? t('Rest') : who
+    const body = resting ? t('{0}s · up next {1}', timer.left, who) : (set ? `${fmtNum(set.w || 0)} × ${set.r ?? set.sec ?? 0}` : who)
+    showLiveCard({
+      title,
+      body,
+      actions: [
+        { id: 'log', title: t('Log set') },
+        { id: 'weight', title: t('+ weight') },
+        { id: 'reps', title: t('+ rep') },
+        { id: 'rest', title: t('+15s') },
+        { id: 'pause', title: A.pausedAt ? t('Resume') : t('Pause') },
+      ],
+    })
+    return () => { if (!useStore.getState().S.active) clearLiveCard() }
+  }, [A, timer])
+
+  const clock = circuitOf(A.entries, unit, { onTarget: true })
 
   return <div className="narrow">
     {/* In list mode the whole session scrolls under the header, so the header (name, clock,
@@ -1053,6 +1162,9 @@ function ActiveWorkout() {
     </div>
     {editing && <div className="muted small" style={{ marginBottom: 8 }}>{t('Editing a saved workout — no rest timers.')}</div>}
     {A.backfill && <div className="muted small" style={{ marginBottom: 8 }}>{t('Logging a past workout — no rest timers.')}</div>}
+    {A.pausedAt && <div className="card" style={{ marginBottom: 8 }}><b>{t('Paused')}</b> <Button onClick={() => update(s => { if (!s.active?.pausedAt) return; s.active.start = (Number(s.active.start) || Date.now()) + (Date.now() - s.active.pausedAt); delete s.active.pausedAt })}>{t('Resume')}</Button></div>}
+    {clock && !player && <Button onClick={() => setPlayer(unit)}>{t('Start the clock')}</Button>}
+    {player && <CircuitPlayer unit={player} onClose={() => setPlayer(null)} />}
 
     {A.entries.length ? (listMode ? (
       <div className="workout-list" data-testid="workout-list" ref={listRef}>
@@ -1204,4 +1316,49 @@ function ActiveWorkout() {
 export default function Workout() {
   const active = useStore(s => s.S.active)
   return active ? <ActiveWorkout /> : <StartChooser />
+}
+
+function TempoEditor({ entryIdx, setIdx, close }) {
+  const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
+  const entry = S.active?.entries?.[entryIdx]
+  const [text, setText] = useState(entry?.sets?.[setIdx]?.tempo || entry?.target?.tempo || '3-1-1-0')
+  const save = (where) => update(s => {
+    const row = s.active?.entries?.[entryIdx]
+    if (!row) return
+    const scheme = String(text || '').trim()
+    if (where === 'set') row.sets[setIdx].tempo = scheme
+    else row.target = { ...(row.target || {}), tempo: scheme }
+  })
+  return <>
+    <h3>{t('Tempo')}</h3>
+    <p className="muted small">{t('Seconds down, at the bottom, up, and at the top. For example 3-1-1-0.')}</p>
+    <input className="input" value={text} onChange={e => setText(e.target.value)} />
+    <div className="row" style={{ gap: 8, margin: '12px 0' }}>
+      <Button onClick={() => { save('set'); close() }}>{t('This set')}</Button>
+      <Button onClick={() => { save('exercise'); close() }}>{t('This exercise')}</Button>
+    </div>
+    <TempoGuide tempo={text} reps={entry?.sets?.[setIdx]?.r || 8} sound={S.sound} onClose={close} />
+  </>
+}
+
+function BandPicker({ entryIdx, setIdx, exerciseId, close }) {
+  const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
+  const chosen = setBandsOf(S.active?.entries?.[entryIdx]?.sets?.[setIdx])
+  const list = bandsOf(S)
+  const pick = (id) => update(s => {
+    const row = s.active?.entries?.[entryIdx]?.sets?.[setIdx]
+    if (!row) return
+    s.bandEx = { ...(s.bandEx || {}), [exerciseId]: true }
+    s.active.entries[entryIdx].sets[setIdx] = toggleSetBand(row, id)
+  })
+  return <>
+    <h3>{t('Bands')}</h3>
+    {!list.length && <Button onClick={() => update(s => { s.bands = starterBands() })}>{t('Use the usual five')}</Button>}
+    <div className="row" style={{ gap: 8, flexWrap: 'wrap', margin: '8px 0' }}>
+      {list.map(b => <button key={b.id} type="button" className="chip" onClick={() => pick(b.id)} style={{ outline: chosen.includes(b.id) ? '2px solid var(--acc)' : 'none' }}>{b.name}</button>)}
+    </div>
+    <Button variant="ghost" onClick={close}>{t('Close')}</Button>
+  </>
 }
