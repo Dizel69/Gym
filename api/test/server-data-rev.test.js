@@ -134,6 +134,24 @@ test('PUT /api/data keeps a plan that was saved later than the copy being pushed
   assert.equal(onDisk().workouts[0].id, 'w-phone', 'the phone workout still lands');
   assert.deepEqual(r.body.state.routines[0].ex[0], saved.ex[0]);
 
+  // a name saved later on the server and a weight pushed later by the phone both stay
+  const named = { id: 'r1', name: 'Жим лёжа', _ts: 900, editedAt: 900, _f: { name: 900, ex: 900 }, ex: [{ id: '0025', weight: 60 }] };
+  const heavier = { id: 'r1', name: 'Жим', _ts: 950, editedAt: 950, _f: { ex: 950 }, ex: [{ id: '0025', weight: 80 }] };
+  r = await put({ state: { _ts: 900, workouts: [], routines: [named] }, baseRev: 2 });
+  assert.equal(r.status, 200);
+  r = await put({ state: { _ts: 800, workouts: [], routines: [heavier] }, baseRev: 3 });
+  assert.equal(r.status, 200);
+  assert.equal(onDisk().routines[0].name, 'Жим лёжа');
+  assert.equal(onDisk().routines[0].ex[0].weight, 80);
+  assert.equal(r.body.state.routines[0].name, 'Жим лёжа');
+
+  // a routine removed on the server does not come back from a phone that still has the old copy
+  r = await put({ state: { _ts: 960, workouts: [], routines: [], deleted: { routines: { r1: 960 } } }, baseRev: 4 });
+  assert.equal(r.status, 200);
+  r = await put({ state: { _ts: 960, workouts: [], routines: [heavier] }, baseRev: 5 });
+  assert.equal(r.status, 200);
+  assert.deepEqual(onDisk().routines, []);
+
   // a backup import sends no baseRev and is allowed to replace the plan
   r = await put({ state: { _ts: 1000, workouts: [], routines: [stale] } });
   assert.equal(r.status, 200);

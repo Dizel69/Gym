@@ -10,9 +10,10 @@
  *   - scalars and settings, `week`, `dayPlan`, `wc`, `reminder`, …: from the copy with the newer `_ts`
  *   - workouts, customEx, equipProfiles, gymCards: union by id, the newer copy's version
  *     of an id that both have; workouts sorted by day and start like every other writer
- *   - routines: same union, except a shared id keeps the copy with the later `editedAt`.
- *     A phone that only wrote steps still has a newer `_ts`, and that used to put its old
- *     sets, weight and time back over a plan just saved on the other device.
+ *   - routines: union by id, then field by field (`_f`, api/routine-sync.js). A weight saved on
+ *     one device and a name saved on the other both stay. A copy with only `editedAt` still
+ *     counts as one whole save at that time. A routine listed in `deleted` stays gone when
+ *     that removal is at least as new as the copy.
  *   - bodyweight: union by day, the later-edited (`t`) entry of a day that both have
  *   - healthDays: union by day; the newer copy's numbers win, a field it omits stays
  *   - favEx: ordered set union, the newer copy first
@@ -21,11 +22,12 @@
  *     forgotten, whichever way it runs); exNotes, barWeights: key union
  *   - `_ts`: the later of the two; `_rev` dropped (the server sets it); `active` left to the caller
  *
- * Known limit: with no record of what each side deleted, an entry removed on one device inside
- * the conflict window comes back from the other. The window is a few seconds now (the store pulls
- * on resume and every push is conditional), and a resurrected entry beats a lost one. Tombstones
- * would close it.
+ * Known limit: workouts, weigh-ins and the other lists still have no record of a removal, so one
+ * deleted inside the conflict window comes back from the other device. Routines do not: the
+ * removal is `deleted.routines`.
  */
+import { applyRoutineDeletions, mergeDeletedMap, mergeRoutineList, stampPlanChange } from '../../../api/routine-sync.js'
+export { stampPlanChange }
 import { beatsWeight } from './exercises.js'
 import { applyExerciseMerges } from './exercise-merge.js'
 import { mergeHealthDays } from './health.js'
@@ -102,35 +104,13 @@ export function stampRoutine(routine, at = Date.now()) {
   return routine
 }
 
-const editedAtOf = routine => {
-  const n = Number(routine?.editedAt)
-  return Number.isFinite(n) && n > 0 ? n : 0
-}
-
 /**
- * Union of two routine lists. The newer document's order and its copy of a shared id win,
- * unless the older document's copy was edited later — then that saved plan is the one kept.
+ * Union of two routine lists. A shared id keeps each field from the side that changed it last.
+ * A routine saved before field stamps (`editedAt` only) still wins as a whole when that save is
+ * the later one.
  */
 export function mergeRoutines(newer = [], older = []) {
-  const olderById = new Map()
-  for (const routine of list(older)) {
-    if (routine?.id != null && !olderById.has(routine.id)) olderById.set(routine.id, routine)
-  }
-  const seen = new Set()
-  const out = []
-  for (const routine of list(newer)) {
-    if (routine?.id == null) { out.push(routine); continue }
-    if (seen.has(routine.id)) continue
-    seen.add(routine.id)
-    const prev = olderById.get(routine.id)
-    out.push(prev && editedAtOf(prev) > editedAtOf(routine) ? prev : routine)
-  }
-  for (const routine of list(older)) {
-    if (routine?.id == null || seen.has(routine.id)) continue
-    seen.add(routine.id)
-    out.push(routine)
-  }
-  return out
+  return mergeRoutineList(newer, older)
 }
 const byDayStart = (a, b) => (a.d === b.d ? (a.start || 0) - (b.start || 0) : a.d < b.d ? -1 : 1)
 
@@ -174,7 +154,18 @@ export function mergeStates(a, b, { prefer } = {}) {
   const o = n === a ? b : a
   const out = clone(n)
   out.workouts = mergeWorkouts(n.workouts, o.workouts).map(clone).sort(byDayStart)
-  if (list(n.routines).length || list(o.routines).length) out.routines = mergeRoutines(n.routines, o.routines).map(clone)
+  if (list(n.routines).length || list(o.routines).length) {
+    // Sign-in keeps the preferred side's plan as it saved it. A conflict keeps each field
+    // from the side that changed it last.
+    out.routines = (prefer ? unionById(n.routines, o.routines) : mergeRoutines(n.routines, o.routines)).map(clone)
+  }
+  if (prefer) {
+    if (out.routines && n.deleted?.routines) out.routines = applyRoutineDeletions(out.routines, n.deleted.routines)
+  } else {
+    const removed = mergeDeletedMap(a.deleted?.routines, b.deleted?.routines)
+    if (out.routines) out.routines = applyRoutineDeletions(out.routines, removed)
+    if (removed) out.deleted = { ...(out.deleted || {}), routines: removed }
+  }
   for (const f of ['customEx', 'equipProfiles', 'gymCards']) {
     if (list(n[f]).length || list(o[f]).length) out[f] = unionById(n[f], o[f]).map(clone)
   }

@@ -7,7 +7,7 @@ import { registerExerciseAliases } from '../lib/exercise-aliases.js'
 import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
 import { guestAllowed } from '../lib/guest.js'
 import { MOBILE, initReminderSync, nativeLoad, nativeSave, onAppActive, syncReminder, writeAutoBackup } from '../lib/mobile.js'
-import { mergeStates, localExtras } from '../lib/sync-merge.js'
+import { mergeStates, localExtras, stampPlanChange } from '../lib/sync-merge.js'
 import { loadRemote, chooseLocal, forgetRemote, connect } from '../lib/remote.js'
 import { loadCoachDevice, saveCoachDevice, coachDeviceSettings } from '../lib/coach-device.js'
 import { adoptLinearWorkoutWeights } from '../lib/progression.js'
@@ -156,7 +156,9 @@ export const useStore = create((set, get) => {
   // stamp it came with: re-stamping a read would make an unchanged copy look newer than a real
   // change made on another device, and push it over that change.
   const persist = (S, push = true, stamp = true) => {
-    if (stamp) S._ts = Date.now()
+    // A clock that runs behind must not make this change look older than the copy it was
+    // made on. stampPlanChange already lifted `_ts` past that copy; keep the later of the two.
+    if (stamp) S._ts = Math.max(Date.now(), Number(S._ts) || 0)
     registerCustom(S.customEx)
     registerExerciseAliases(S.exAliases)
     localStorage.setItem(KEY, JSON.stringify(S))
@@ -362,8 +364,10 @@ export const useStore = create((set, get) => {
 
     // Mutate a draft of S via producer fn, then persist + schedule sync.
     update(mut, push = true) {
-      const S = clone(get().S)
+      const prev = get().S
+      const S = clone(prev)
       mut(S)
+      stampPlanChange(prev, S)
       persist(S, push)
     },
     // A replace that is meant to reach the server (backup import, reset) is a deliberate

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { stampPlanChange } from '../../../api/routine-sync.js'
 import { localExtras, mergeBodyweight, mergeRoutines, mergeStates, newerOf, unionById } from './sync-merge.js'
 
 const workout = (id, d = '2026-09-01', start = 1) => ({ id, d, start, entries: [] })
@@ -59,6 +60,56 @@ describe('mergeStates', () => {
     expect(m.bodyweight.map(b => b.d)).toEqual(['2026-08-30', '2026-09-01'])
     expect(m.favEx).toEqual(['x', 'y', 'z'])
     expect(new Set(ids(m.workouts)).size).toBe(m.workouts.length)
+  })
+
+  it('keeps a weight saved on one side and a name saved on the other', () => {
+    const phone = base({
+      _ts: 800,
+      routines: [{ id: 'shared', name: 'Жим', _ts: 800, editedAt: 800, _f: { ex: 800 }, ex: [{ id: '0025', weight: 80 }] }],
+    })
+    const computer = base({
+      _ts: 100,
+      routines: [{ id: 'shared', name: 'Жим лёжа', _ts: 900, editedAt: 900, _f: { name: 900 }, ex: [{ id: '0025', weight: 60 }] }],
+    })
+    const got = mergeStates(phone, computer).routines[0]
+    expect(got.name).toBe('Жим лёжа')
+    expect(got.ex[0].weight).toBe(80)
+    expect(mergeStates(computer, phone).routines[0]).toMatchObject({ name: 'Жим лёжа', ex: [{ weight: 80 }] })
+  })
+
+  it('a removed routine stays removed, and an edit after the removal keeps it', () => {
+    const kept = { id: 'shared', name: 'Жим', _ts: 1000, editedAt: 1000, ex: [{ id: '0025', weight: 60 }] }
+    const gone = mergeStates(
+      base({ _ts: 2000, routines: [], deleted: { routines: { shared: 5000 } } }),
+      base({ _ts: 1000, routines: [kept] }),
+    )
+    expect(gone.routines).toEqual([])
+    expect(gone.deleted.routines.shared).toBe(5000)
+    const back = mergeStates(
+      base({ _ts: 2000, routines: [], deleted: { routines: { shared: 5000 } } }),
+      base({ _ts: 1000, routines: [{ ...kept, _ts: 6000, editedAt: 6000 }] }),
+    )
+    expect(back.routines.map(r => r.id)).toEqual(['shared'])
+  })
+
+  it('a clock that runs behind still stamps the edit after the copy it has seen', () => {
+    const prev = base({
+      _ts: 5000,
+      routines: [{ id: 'shared', name: 'Жим', _ts: 5000, editedAt: 5000, ex: [{ id: '0025', weight: 60 }] }],
+    })
+    const next = base({
+      _ts: 5000,
+      routines: [{ id: 'shared', name: 'Жим', ex: [{ id: '0025', weight: 80 }] }],
+    })
+    stampPlanChange(prev, next, 1000)
+    expect(next.routines[0]._ts).toBe(5001)
+    expect(next.routines[0].editedAt).toBe(5001)
+    expect(next.routines[0]._f.ex).toBe(5001)
+    expect(next._ts).toBe(5001)
+    const dropped = base({ _ts: 5000, routines: [] })
+    stampPlanChange(prev, dropped, 1000)
+    expect(dropped.routines).toEqual([])
+    expect(dropped.deleted.routines.shared).toBe(5001)
   })
 
   it('a later plan edit wins even when the other document is newer', () => {
