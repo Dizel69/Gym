@@ -1,3 +1,5 @@
+import { MOBILE } from './mobile.js'
+
 // The workout card on the lock screen and in the notification shade. An ongoing
 // notification: weight × reps while a set is up, the countdown and what is next while
 // resting. Tapping a button posts an action; the workout screen is the only thing that
@@ -13,6 +15,7 @@ async function plugin() {
 }
 
 export async function showLiveCard({ title, body, actions }) {
+  if (!MOBILE) return
   try {
     const LocalNotifications = await plugin()
     if (!ready) {
@@ -42,6 +45,7 @@ export async function showLiveCard({ title, body, actions }) {
 }
 
 export async function clearLiveCard() {
+  if (!MOBILE) return
   try {
     const LocalNotifications = await plugin()
     await LocalNotifications.cancel({ notifications: [{ id: ID }] })

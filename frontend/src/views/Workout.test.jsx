@@ -1340,7 +1340,7 @@ describe('workout controls: the more menu and the set menu', () => {
     await mount([exercise('plain-bench', [false, false])])
     await act(async () => { container.querySelector('button[aria-label="Set 2"]').dispatchEvent(new dom.Event('click', { bubbles: true })) })
     expect(lastSet().setIdx).toBe(1)
-    expect(lastSet().actions.filter(Boolean).map(it => it.label)).toEqual(['Drop set', 'Rest-pause burst', 'Remove this set'])
+    expect(lastSet().actions.filter(Boolean).map(it => it.label)).toEqual(['Drop set', 'Rest-pause burst', 'Tempo', 'Bands', 'Remove this set'])
 
     await act(async () => { setItem('Drop set').onClick() })
     expect(mocks.S.active.entries[0].sets[1].drops?.length).toBe(1)

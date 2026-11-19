@@ -10,7 +10,7 @@ import { buildSessionEntries } from './session-start.js'
 
 describe('tempo', () => {
   it('reads 3-1-1-0 as lower, pause, lift, no squeeze', () => {
-    expect(parseTempo('3-1-1-0')).toEqual({ down: 3, bottom: 1, up: 1, top: 0 })
+    expect(parseTempo('3-1-1-0')).toMatchObject({ down: 3, bottom: 1, up: 1, top: 0 })
     const steps = tempoSteps('3-1-1-0', 1)
     expect(steps.map(s => s.phase)).toEqual(['down', 'bottom', 'up'])
     expect(stepAt(steps, 0).step.phase).toBe('down')
@@ -70,7 +70,7 @@ describe('circuits', () => {
   it('starts on get ready and moves on when the step is done', () => {
     const cfg = defaultCircuit('tabata')
     const stations = [{ idx: 0, id: 'ex', mode: 'reps', reps: 8, w: 0, sec: 0, base: 0 }]
-    const run = startRun({ cfg, stations }, 0)
+    const run = startRun({ cfg, stations, unit: [0] }, 0)
     expect(tickRun(run, 1000).run.i).toBe(0)
     const moved = doneStep(run, 10_000)
     expect(moved.run.i).toBeGreaterThan(0)

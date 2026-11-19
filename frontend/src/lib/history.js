@@ -126,10 +126,12 @@ export function setLabel(id, s, cfg, bands) {
   // whole point, so both sides are shown rather than a single combined total.
   if (isSideSet(s)) {
     const partial = s.sides.L.done !== s.sides.R.done
-    return ['L', 'R'].map(key => {
+    const text = ['L', 'R'].map(key => {
       const side = s.sides[key]
       return `${t(key)} ${partial && !side.done ? '—' : oneSide(side) + effortTail(side)}`
     }).join(' · ')
+    const names = bandNames(s, bands)
+    return names ? text + ' · ' + names : text
   }
   // Bodyweight reads as what you did — "12", or "+10 × 12" once there is a belt involved —
   // rather than "0×12", which says a set was performed with no weight and means nothing.

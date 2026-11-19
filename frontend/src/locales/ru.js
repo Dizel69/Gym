@@ -1747,6 +1747,7 @@ export default {
   'Circuit': 'Круговая',
   'Intervals': 'Интервалы',
   'Run / walk': 'Бег / ходьба',
+  'How it runs': 'Как идёт',
   'Start the clock': 'Запустить часы',
   'Get ready': 'Приготовься',
   'Up next': 'Дальше',

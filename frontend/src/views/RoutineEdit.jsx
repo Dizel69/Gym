@@ -9,7 +9,7 @@ import { t, exerciseNameFor } from '../lib/i18n.js'
 import { supersetUnits, moveSupersetUnit, cleanupSg, exLine, defaultConfig } from '../lib/history.js'
 import { defaultCircuit, setCircuit, rememberRegular, restoreRegular, roundsPerStation, circuitOf } from '../lib/circuit.js'
 import { Thumb } from '../components/Media.jsx'
-import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet } from '../sheets.jsx'
+import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet, menuSheet } from '../sheets.jsx'
 import { stampRoutine } from '../lib/sync-merge.js'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
@@ -345,6 +345,30 @@ export default function RoutineEdit() {
     fn(routine.ex)
     stampRoutine(routine)
   })
+  const openGroupClock = (index) => {
+    const sg = r.ex[index]?.sg
+    if (!sg) return
+    const pick = (mode) => edit(ex => {
+      if (!mode) { setCircuit(ex, sg, null); return }
+      const members = ex.filter(e => e.sg === sg)
+      const cfg = defaultCircuit(mode)
+      const rounds = roundsPerStation(cfg, members.length) || 1
+      for (const e of members) if ((Number(e.sets) || 1) < rounds) e.sets = rounds
+      setCircuit(ex, sg, cfg)
+    })
+    menuSheet({
+      title: t('How it runs'),
+      items: [
+        { label: t('Regular'), onClick: () => pick('') },
+        { label: t('Circuit'), onClick: () => pick('circuit') },
+        { label: t('AMRAP'), onClick: () => pick('amrap') },
+        { label: t('EMOM'), onClick: () => pick('emom') },
+        { label: t('Tabata'), onClick: () => pick('tabata') },
+        { label: t('Intervals'), onClick: () => pick('intervals') },
+        { label: t('Run / walk'), onClick: () => pick('runwalk') },
+      ],
+    })
+  }
   const reorder = useRoutineReorder(r, r?.ex || [], (sourceIndex, targetSlot) => {
     edit(exercises => { reorderRoutineUnit(exercises, sourceIndex, targetSlot) })
   })
@@ -452,7 +476,7 @@ export default function RoutineEdit() {
       return <div key={i} data-routine-row data-ex-index={i}
         className={'routine-drag-row' + (isDragging ? ' is-dragging' : '')}
         style={isDragging ? { transform: `translate3d(0, ${reorder.drag.deltaY}px, 0)` } : undefined}>
-        {unitFirst.has(i) && <div className="ss-label"><Icon name="link" />{t('Superset')}</div>}
+        {unitFirst.has(i) && <div className="ss-label"><Icon name="link" />{t('Superset')}<button type="button" className="chip" style={{ marginLeft: 8 }} onClick={ev => { ev.stopPropagation(); openGroupClock(i) }}>{t('How it runs')}</button></div>}
         <SwipeToDelete className={'item' + (inSS.has(i) ? ' in-ss' : '')}
           deleteLabel={t('Remove from routine')}
           onDelete={() => edit(x => { x.splice(i, 1); cleanupSg(x) })}

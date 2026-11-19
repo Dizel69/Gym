@@ -41,8 +41,8 @@ export function writeForgotten(p) {
 export function lastSetOf(A) {
   let best = null
   for (const e of A?.entries || []) for (const s of e?.sets || []) {
-    const at = num(s?.at)
-    if (at && ticked(s) && (!best || at > best.at)) best = { at, entry: e, set: s }
+    const at = Number(s?.at)
+    if (ticked(s) && Number.isFinite(at) && at >= 0 && (!best || at > best.at)) best = { at, entry: e, set: s }
   }
   return best
 }

@@ -7,7 +7,7 @@ import { modeOf } from '../lib/history.js'
 import {
   startRun, tickRun, doneStep, skipStep, pauseRun, resumeRun, stopRun,
   leftOf, runStep, logStation, runResult, compareResult, previousResult,
-  stationSuggestions, nextProgram, circuitClock,
+  stationSuggestions, nextProgram, circuitClock, nextWorkAfter,
 } from '../lib/circuit.js'
 import { Button } from './ui.jsx'
 
@@ -97,7 +97,8 @@ export function CircuitPlayer({ unit, onClose }) {
   const left = leftOf(run, now)
   const clock = circuitClock(run, now)
   const name = step ? exerciseNameFor(exOr(run.stations[step.m]?.id)) : ''
-  const next = run && stepAtSafe(run)
+  const upcoming = run ? nextWorkAfter(run.cfg, run.stations, run.i) : null
+  const next = upcoming ? exerciseNameFor(exOr(run.stations[upcoming.m]?.id)) : ''
 
   if (result) {
     const line = !compare ? ''
@@ -135,11 +136,4 @@ export function CircuitPlayer({ unit, onClose }) {
       <Button variant="ghost" onClick={() => { const stopped = stopRun(run); setRun(stopped.run); finish(stopped.run) }}>{t('Stop')}</Button>
     </div>
   </div>
-}
-
-function stepAtSafe(run) {
-  const s = runStep({ ...run, i: run.i + 1 })
-  if (!s) return ''
-  if (s.k === 'rest') return t('Rest')
-  return ''
 }
