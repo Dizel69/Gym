@@ -9,4 +9,6 @@
     <string name="widget_next_name">Следующая тренировка</string>
     <string name="widget_next_desc">Что дальше по плану</string>
     <string name="widget_open">Открой openGym</string>
+    <string name="workout_channel_name">Тренировка</string>
+    <string name="workout_channel_desc">Подход, который сейчас идёт</string>
 </resources>

@@ -32,6 +32,7 @@ import { bandText, setBandsOf, bandsOf, toggleSetBand, starterBands } from '../l
 import { circuitOf } from '../lib/circuit.js'
 import { decideForgotten, readForgotten, honestEnd } from '../lib/forgotten-workout.js'
 import { showLiveCard, clearLiveCard } from '../lib/live-glance.js'
+import { liveCardModel } from '../lib/live-card.js'
 import { TempoGuide } from '../components/TempoGuide.jsx'
 import { CircuitPlayer } from '../components/CircuitPlayer.jsx'
 
@@ -552,6 +553,7 @@ function ActiveWorkout() {
   const dense = workoutView === 'compact'
   const wc = workoutControls(S)
   const [player, setPlayer] = useState(null)
+  const [hr, setHr] = useState(null)
   const askedRef = useRef(0)
   const touchRef = useRef(Date.now())
   const liveTarget = useRef(null)
@@ -1117,31 +1119,54 @@ function ActiveWorkout() {
   }, [update])
   useEffect(() => {
     if (!MOBILE) return undefined
+    let gone = false
+    let sub
+    let HeartRate
+    ;(async () => {
+      try {
+        const { registerPlugin } = await import('@capacitor/core')
+        HeartRate = registerPlugin('HeartRate')
+        sub = await HeartRate.addListener('bpm', ev => {
+          if (gone) return
+          const n = Math.round(Number(ev?.bpm))
+          if (n >= 25 && n <= 250) setHr(prev => (prev === n ? prev : n))
+        })
+        await HeartRate.start()
+      } catch { /* no strap: the card still posts, without a pulse */ }
+    })()
+    return () => {
+      gone = true
+      sub?.remove?.()
+      HeartRate?.stop?.().catch(() => {})
+    }
+  }, [])
+  useEffect(() => {
+    if (!MOBILE) return undefined
     let idx = 0, i = 0, found = false
     for (let e = 0; e < A.entries.length && !found; e++) {
       const j = (A.entries[e].sets || []).findIndex(s => !s.done)
       if (j >= 0) { idx = e; i = j; found = true }
     }
     liveTarget.current = found ? { idx, i } : null
-    const entry = A.entries[idx]
+    const entry = found ? A.entries[idx] : null
     const set = entry?.sets?.[i]
+    const who = entry ? exerciseNameFor(exOr(entry.id)) : (A.name || '')
     const resting = !!timer && !A.pausedAt
-    const who = exerciseNameFor(exOr(entry?.id))
-    const title = A.pausedAt ? t('Paused') : resting ? t('Rest') : who
-    const body = resting ? t('{0}s · up next {1}', timer.left, who) : (set ? `${fmtNum(set.w || 0)} × ${set.r ?? set.sec ?? 0}` : who)
-    showLiveCard({
-      title,
-      body,
-      actions: [
-        { id: 'log', title: t('Log set') },
-        { id: 'weight', title: t('+ weight') },
-        { id: 'reps', title: t('+ rep') },
-        { id: 'rest', title: t('+15s') },
-        { id: 'pause', title: A.pausedAt ? t('Resume') : t('Pause') },
-      ],
-    })
+    showLiveCard(liveCardModel({
+      name: who,
+      set,
+      cfg: entry ? { ...(entry.target || {}), id: entry.id } : null,
+      resting,
+      paused: !!A.pausedAt,
+      restLeft: timer?.left,
+      unit: S.unit || 'kg',
+      bpm: hr,
+      done,
+      total,
+      finished: !found,
+    }))
     return () => { if (!useStore.getState().S.active) clearLiveCard() }
-  }, [A, timer])
+  }, [A, timer, hr, done, total, S.unit])
 
   const clock = circuitOf(A.entries, unit, { onTarget: true })
 

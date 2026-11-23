@@ -13,4 +13,6 @@
     <string name="widget_next_name">Next workout</string>
     <string name="widget_next_desc">What is coming up</string>
     <string name="widget_open">Open openGym</string>
+    <string name="workout_channel_name">Workout</string>
+    <string name="workout_channel_desc">The set you are on, while a workout is running</string>
 </resources>

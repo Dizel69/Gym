@@ -9,6 +9,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(InstallPlugin.class);
         registerPlugin(PrintPlugin.class);
         registerPlugin(WidgetBridgePlugin.class);
+        registerPlugin(LiveCardPlugin.class);
+        registerPlugin(HeartRatePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
