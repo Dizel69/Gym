@@ -3,8 +3,8 @@
 // Nothing here is stored or sent. Home shows the year stories only from
 // 14 December through 31 December. Stats shows one month at a time.
 import { isoOf, weekKey, weekStartOf } from './format.js'
-import { lastBW, workoutVolume } from './history.js'
-import { completedVolumeOf, isWarmupRow } from './workout-model.js'
+import { lastBW, sessionVolume, workoutVolume, bodyweightFor, countsBodyweight } from './history.js'
+import { isWarmupRow } from './workout-model.js'
 import { estimate1RM } from './onerm.js'
 
 const HOUR = 3600000
@@ -100,9 +100,9 @@ function sessionMs(w) {
   return ms <= MAX_SESSION ? ms : 0
 }
 
-function volumeOf(w) {
+function volumeOf(w, S) {
   if (!w?.entries) return 0
-  return workoutVolume(w)
+  return sessionVolume(w, S)
 }
 
 function workRows(entry) {
@@ -121,7 +121,7 @@ function topWorkSet(entry) {
   return best
 }
 
-function sessionSnapshot(w) {
+function sessionSnapshot(w, S) {
   const byId = new Map()
   for (const entry of w?.entries || []) {
     if (typeof entry?.id !== 'string') continue
@@ -130,7 +130,7 @@ function sessionSnapshot(w) {
     const prev = byId.get(entry.id)
     if (!prev || top.est > prev.est) byId.set(entry.id, { ...top, name: entry.n || entry.muscleSnapshot?.n || null })
   }
-  return { d: w?.d || null, volume: volumeOf(w), byId }
+  return { d: w?.d || null, volume: volumeOf(w, S), byId }
 }
 
 function whenOf(w) {
@@ -205,7 +205,7 @@ function favoriteOf(perEx) {
   return favorite
 }
 
-function collect(workouts) {
+function collect(workouts, S) {
   let ms = 0
   let longest = 0
   let volume = 0
@@ -216,7 +216,7 @@ function collect(workouts) {
     const dur = sessionMs(w)
     ms += dur
     if (dur > longest) longest = dur
-    const vol = volumeOf(w)
+    const vol = volumeOf(w, S)
     volume += vol
     if (!heaviest || vol > heaviest.volume) heaviest = { d: w.d, volume: vol }
     const ym = typeof w.d === 'string' ? w.d.slice(0, 7) : ''
@@ -226,7 +226,8 @@ function collect(workouts) {
       if (!rows.length || typeof entry?.id !== 'string') continue
       const cur = perEx.get(entry.id) || { sets: 0, vol: 0, name: null, best: null }
       cur.sets += rows.length
-      cur.vol += rows.reduce((n, s) => n + completedVolumeOf(s), 0)
+      const kg = countsBodyweight(S) ? bodyweightFor(w, S) : 0
+      cur.vol += workoutVolume({ entries: [entry] }, { bodyweight: kg })
       cur.name = cur.name || entry.n || entry.muscleSnapshot?.n || null
       for (const s of rows) {
         const w = Number(s.w)
@@ -245,10 +246,10 @@ function collect(workouts) {
   return { ms, longest, volume, perEx, heaviest, busiest }
 }
 
-function progressOf(sorted) {
+function progressOf(sorted, S) {
   if (sorted.length < 2) return null
-  const first = sessionSnapshot(sorted[0])
-  const last = sessionSnapshot(sorted[sorted.length - 1])
+  const first = sessionSnapshot(sorted[0], S)
+  const last = sessionSnapshot(sorted[sorted.length - 1], S)
   let pick = null
   for (const [id, a] of first.byId) {
     const b = last.byId.get(id)
@@ -264,7 +265,7 @@ function progressOf(sorted) {
 
 function pack(S, workouts) {
   const unit = S?.unit === 'lb' ? 'lb' : 'kg'
-  const totals = collect(workouts)
+  const totals = collect(workouts, S)
   const kg = unit === 'lb' ? totals.volume * LB_TO_KG : totals.volume
   const bw = Number(lastBW({ bodyweight: S?.bodyweight || [] })?.w)
   const copies = bw > 0 && kg > 0 ? Math.round(kg / bw) : null
@@ -309,7 +310,7 @@ export function yearReview(S, year) {
     streak: longestWeekRun(workouts, weekStartOf(S)),
     spanDays,
     everyDays: workouts.length > 1 && spanDays > 0 ? Math.max(1, Math.round(spanDays / (workouts.length - 1))) : null,
-    progress: progressOf(sorted),
+    progress: progressOf(sorted, S),
   }
 }
 

@@ -4,6 +4,7 @@ import { bandText, knownBands } from './bands.js'
 import { cycleOn, scheduleFor } from './week-cycle.js'
 import { isCardio, isBodyweightEq, isAssisted, betterWeight } from './exercises.js'
 import { phaseForSet, modeForSet, modeForEntry, isWarmupRow, normalizeMode, completedVolumeOf, nextDropWeight, splitBurstReps, makeSideSet, isSideSet, syncSideAggregate } from './workout-model.js'
+import { bodyLoadOf, bodyweightFor, countsBodyweight } from './bw-load.js'
 const objectOf = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 // Completed-state-independent work rows whose authoritative mode matches the requested mode.
 const workRowsForMode = (entry = {}, mode = 'reps') => {
@@ -581,7 +582,17 @@ export function applyIntensifierPlan(sets, cfg) {
   }
   return [warmup, work]
 }
-export function workoutVolume(w) {
+const loadOf = (row, fn) => {
+  if (!row || typeof row !== 'object') return row
+  const out = { ...row, w: fn(Number(row.w) || 0) }
+  if (Array.isArray(row.drops)) out.drops = row.drops.map(d => ({ ...d, w: fn(Number(d?.w) || 0) }))
+  return out
+}
+const withLoad = (s, fn) => (isSideSet(s)
+  ? { ...s, sides: { L: loadOf(s.sides.L, fn), R: loadOf(s.sides.R, fn) } }
+  : loadOf(s, fn))
+
+export function workoutVolume(w, opts) {
   let v = 0
   // Count each completed limb at its own load, including drops. A rest-pause side's r already
   // includes its bursts. Unchecked limbs and warm-ups contribute no volume.
@@ -593,11 +604,35 @@ export function workoutVolume(w) {
   // A per-side row's mirror is `w = max(L, R), r = L + R` (workout-model syncSideAggregate) —
   // right for a headline, wrong for a product: 14×10 left and 12.5×6 right is 215, not 14×16.
   // Each side is its own weight × reps, with its own drops and bursts.
-  w.entries.forEach(e => e.sets.forEach(s => {
-    if (!isWarmupRow(s)) v += completedVolumeOf(s)
-  }))
+  // `bodyweight` adds the session's body weight on a pull-up, chin-up, dip or push-up. A belt
+  // sits on top. An assistance machine comes off. A barbell set is unchanged, and so is a call
+  // that does not pass a body weight: the saved `vol` stays the logged load.
+  const bodyweight = Number(opts?.bodyweight) || 0
+  w.entries.forEach(e => {
+    const spec = bodyweight > 0 ? bodyLoadOf(e) : null
+    const own = spec ? bodyweight * spec.share : 0
+    e.sets.forEach(s => {
+      if (isWarmupRow(s)) return
+      if (spec && own > 0 && modeForSet(s, e.target) === 'reps') {
+        v += spec.assisted
+          ? completedVolumeOf(withLoad(s, x => Math.max(0, own - x)))
+          : completedVolumeOf(s) + completedVolumeOf(withLoad(s, () => own))
+      } else v += completedVolumeOf(s)
+    })
+  })
   return v
 }
+// What a screen shows. The saved `vol` is still the logged load, so turning this off puts the
+// old number back without rewriting the log. A workout with no sets left falls back to that save.
+export function sessionVolume(w, S) {
+  if (Array.isArray(w?.entries)) {
+    const bodyweight = countsBodyweight(S) ? bodyweightFor(w, S) : 0
+    return Math.max(0, Number(workoutVolume(w, { bodyweight })) || 0)
+  }
+  const saved = Number(w?.vol)
+  return Number.isFinite(saved) ? Math.max(0, saved) : 0
+}
+export { countsBodyweight, bodyweightFor }
 // A unilateral row counts as two toward the "x / y sets" progress — one per side — since each
 // side is logged and ticked on its own (issue #60). Every other row counts as one.
 export const setUnits = s => (isSideSet(s) ? 2 : 1)

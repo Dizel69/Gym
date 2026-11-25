@@ -4,7 +4,7 @@
 // had a workout. An empty month is skipped, so a quiet month does not wipe
 // the game. The month on screen never sets its own target.
 import { monthKey, shiftMonth } from './year-review.js'
-import { workoutVolume } from './history.js'
+import { sessionVolume } from './history.js'
 
 const LOOKBACK = 3
 
@@ -12,34 +12,32 @@ function inMonth(w, ym) {
   return typeof w?.d === 'string' && w.d.startsWith(ym + '-')
 }
 
-function volumeOf(w) {
-  if (w?.entries) return workoutVolume(w)
-  const saved = Number(w?.vol)
-  return saved > 0 ? saved : 0
+function volumeOf(w, S) {
+  return sessionVolume(w, S)
 }
 
-function tally(rows) {
+function tally(rows, S) {
   let volume = 0
   let records = 0
   for (const w of rows) {
-    volume += volumeOf(w)
+    volume += volumeOf(w, S)
     if (Array.isArray(w.prs)) records += w.prs.length
   }
   return { workouts: rows.length, volume, records }
 }
 
-export function monthTotals(workouts, ym) {
+export function monthTotals(workouts, ym, S) {
   const rows = (workouts || []).filter(w => inMonth(w, ym))
   if (!rows.length) return null
-  return tally(rows)
+  return tally(rows, S)
 }
 
-function pastMonths(workouts, ym) {
+function pastMonths(workouts, ym, S) {
   const found = []
   let cursor = shiftMonth(ym, -1)
   for (let i = 0; i < 36 && found.length < LOOKBACK; i++) {
     const rows = workouts.filter(w => inMonth(w, cursor))
-    if (rows.length) found.push(tally(rows))
+    if (rows.length) found.push(tally(rows, S))
     cursor = shiftMonth(cursor, -1)
   }
   return found
@@ -52,10 +50,10 @@ function pastMonths(workouts, ym) {
  */
 export function goalsForMonth(S, ym) {
   const workouts = S?.workouts || []
-  const past = pastMonths(workouts, ym)
+  const past = pastMonths(workouts, ym, S)
   if (!past.length) return null
   const avg = key => past.reduce((sum, month) => sum + month[key], 0) / past.length
-  const current = tally(workouts.filter(w => inMonth(w, ym)))
+  const current = tally(workouts.filter(w => inMonth(w, ym)), S)
   const goals = [{ id: 'workouts', target: Math.max(1, Math.round(avg('workouts'))), value: current.workouts }]
   const volume = Math.round(avg('volume'))
   if (volume >= 1) goals.push({ id: 'volume', target: volume, value: current.volume })

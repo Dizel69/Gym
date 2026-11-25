@@ -2,7 +2,7 @@
 // ready to send into a chat. The text is pure so a test can read it. The canvas is
 // only how that text becomes a file.
 import { EXIDX } from './exercises.js'
-import { setLabel } from './history.js'
+import { setLabel, sessionVolume } from './history.js'
 import { exerciseNameFor, t } from './i18n-core.js'
 import { capWords, fmtDate, fmtVol, durPart } from './format.js'
 import { hasCompletedWork, isWarmupRow } from './workout-model.js'
@@ -31,7 +31,8 @@ export function workoutCardModel(w, unit = 'kg') {
       pr: !!(w.prs && w.prs.includes(e.id)),
     }
   }).filter(Boolean)
-  const meta = [...durPart((w?.end || 0) - (w?.start || 0)), w?.vol ? fmtVol(w.vol, unit) : ''].filter(Boolean).join(' · ')
+  const vol = sessionVolume(w)
+  const meta = [...durPart((w?.end || 0) - (w?.start || 0)), vol ? fmtVol(vol, unit) : ''].filter(Boolean).join(' · ')
   return {
     title: capWords(w?.name || t('Workout')),
     when: w?.d ? fmtDate(w.d, true, true) : '',

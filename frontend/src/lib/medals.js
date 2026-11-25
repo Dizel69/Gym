@@ -32,7 +32,7 @@ export function medalCase(S, now = new Date()) {
   const held = { workouts: null, volume: null, records: null }
   const shelf = []
   for (const ym of span(workouts, now)) {
-    const totals = monthTotals(workouts, ym)
+    const totals = monthTotals(workouts, ym, S)
     if (totals) {
       for (const id of ORDER) {
         if (!(totals[id] > 0)) continue
@@ -42,7 +42,7 @@ export function medalCase(S, now = new Date()) {
         }
       }
     }
-    const report = goalsForMonth({ workouts }, ym)
+    const report = goalsForMonth(S, ym)
     if (report && report.goals.every(goal => goal.value >= goal.target)) {
       shelf.push({ ym, month: Number(ym.slice(5, 7)) })
     }

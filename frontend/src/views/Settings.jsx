@@ -254,6 +254,10 @@ export default function Settings() {
           subtitle: INSTR_LANGS.includes(k) ? null : t("Exercise instructions aren't available in this language yet — they stay in English."),
         }))}
       />
+      <Row icon="figureStrength" iconTint="var(--teal)" title={t('Body weight in volume')}
+        subtitle={t('Pull-ups add your body weight. A belt adds on top. An assistance machine subtracts its help. Records and progression stay as logged.')}>
+        <Switch checked={S.volumeBodyweight !== false} onChange={v => update(s => { s.volumeBodyweight = v })} />
+      </Row>
       <Row icon="scale" iconTint="var(--teal)" title={t('Weight unit')}>
         <Segmented className="seg-inline"
           options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]}

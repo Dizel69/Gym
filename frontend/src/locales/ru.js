@@ -1766,5 +1766,7 @@ export default {
   '{0}s · up next {1}': '{0} с · дальше {1}',
   'Paused': 'Пауза',
   '{0} bpm': '{0} уд/мин',
+  'Body weight in volume': 'Вес тела в тоннаже',
+  'Pull-ups add your body weight. A belt adds on top. An assistance machine subtracts its help. Records and progression stay as logged.': 'Подтягивания прибавляют вес тела. Пояс сверху. На тренажёре с помощью помощь вычитается. Рекорды и прогрессия не меняются.',
   'Close': 'Закрыть',
 }

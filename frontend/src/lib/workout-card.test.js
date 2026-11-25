@@ -24,7 +24,7 @@ describe('workout card', () => {
     const card = workoutCardModel(workout, 'kg')
     expect(card.title).toBe('Жим')
     expect(card.meta).toContain('45 min')
-    expect(card.meta).toContain('2,400 kg')
+    expect(card.meta).toContain('1,120 kg')
     expect(card.rows).toHaveLength(2)
     expect(card.rows[0].pr).toBe(true)
     expect(card.rows[0].sets).toBe('80×8 · 80×6')

@@ -5,7 +5,7 @@ import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, categor
 import { mergeExercise, undoMerge, mergePreview, mergeBlocked } from './lib/exercise-merge.js'
 import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile } from './lib/equipment.js'
 import { fmtDate, fmtNum, capWords, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, routineCount, DAYN, DAYS, weekOrder, weekStartOf, weekDayOffset, MONTHS_LONG, ACCENTS } from './lib/format.js'
-import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineIds, workoutVolume, setsDone, setsDoneActive, setUnitsTotal, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
+import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineIds, workoutVolume, sessionVolume, bodyweightFor, countsBodyweight, setsDone, setsDoneActive, setUnitsTotal, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
 import { usesBar, barWeightFor, defaultBarWeight, hasBarOverride, isNoBar } from './lib/bar.js'
 import { toScale, rirOf, EFFORT_PRESETS, effortColor } from './lib/effort.js'
 import { beep, vibrate } from './lib/sound.js'
@@ -2144,11 +2144,12 @@ function WorkoutDetail({ w, close }) {
   const grouped = groups.length > 1 || (groups[0] && groups[0].rid && (live.routineIds || []).length > 1)
   return <>
     <h3>{live.name}</h3>
-    <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(live.d, true), ...durPart(live.end - live.start), fmtVol(live.vol, st.unit), ...(live.bw ? [fmtNum(live.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
+    <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(live.d, true), ...durPart(live.end - live.start), fmtVol(sessionVolume(live, st), st.unit), ...(live.bw ? [fmtNum(live.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
     {grouped ? groups.map(g => {
       const r = g.rid ? st.routines.find(x => x.id === g.rid) : null
       const setN = g.items.reduce((n, [e]) => n + e.sets.filter(s => s.done && !isWarmupRow(s)).length, 0)
-      const vol = workoutVolume({ entries: g.items.map(([e]) => e) })
+      const kg = countsBodyweight(st) ? bodyweightFor(live, st) : 0
+      const vol = workoutVolume({ entries: g.items.map(([e]) => e) }, { bodyweight: kg })
       return <div key={g.key}>
         <div className="row between" style={{ margin: '2px 0 8px', paddingBottom: 6, borderBottom: '1px solid var(--sep)' }}>
           <div className="row" style={{ gap: 7, fontWeight: 600 }}>
@@ -2191,7 +2192,7 @@ function Calendar({ start, close }) {
   const startOffset = weekDayOffset(new Date(y, mo, 1).getDay(), ws)
   const daysIn = new Date(y, mo + 1, 0).getDate()
   const monthWs = st.workouts.filter(w => w.d.startsWith(y + '-' + String(mo + 1).padStart(2, '0')))
-  const monthVol = monthWs.reduce((a, w) => a + (w.vol || 0), 0)
+  const monthVol = monthWs.reduce((a, w) => a + sessionVolume(w, st), 0)
   const monthMs = monthWs.reduce((a, w) => a + Math.max(0, (w.end || w.start) - w.start), 0)
   const cells = []
   for (let i = 0; i < startOffset; i++) cells.push(<div key={'e' + i} />)
@@ -2230,7 +2231,7 @@ export function WorkoutRow({ w, onClick }) {
   return <div className="item" {...tappable(onClick)}>
     <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={glyph} /></span>
     <div className="grow"><div className="tt">{w.name}</div>
-      <div className="ss">{[fmtDate(w.d, true), ...durPart(w.end - w.start), t('{0} sets', setsDone(w)), fmtVol(w.vol, st.unit)].join(' · ')}</div></div>
+      <div className="ss">{[fmtDate(w.d, true), ...durPart(w.end - w.start), t('{0} sets', setsDone(w)), fmtVol(sessionVolume(w, st), st.unit)].join(' · ')}</div></div>
     {w.prs && w.prs.length > 0 && <span className="pr"><Icon name="trophy" />{w.prs.length} PR</span>}
     <Icon name="chevronRight" className="chev" />
   </div>
@@ -2645,7 +2646,7 @@ function FinishSummary({ w, prs, e1prs = [], additions = [], close }) {
     <h3 style={{ margin: '8px 0' }}>{t('Workout complete!')}</h3>
     <div className="tiles" style={{ textAlign: 'left' }}>
       <div className="tile"><div className="l">{t('Duration')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{fmtDur(w.end - w.start)}</div></div>
-      <div className="tile"><div className="l">{t('Volume')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{fmtVol(w.vol, st.unit)}</div></div>
+      <div className="tile"><div className="l">{t('Volume')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{fmtVol(sessionVolume(w, st), st.unit)}</div></div>
       <div className="tile"><div className="l">{t('Sets')}</div><div className="v" style={{ fontSize: '1.1rem' }}>{t('{0} sets · {1} work', setsDone(w), workSetsDone(w))}</div></div>
       <div className="tile"><div className="l">{t('PRs')}</div><div className="v" style={{ fontSize: 20 }}>{prs.length || '—'}</div></div>
     </div>
