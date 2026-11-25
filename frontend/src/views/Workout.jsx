@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { useUI } from '../store/useUI.js'
-import { exOr, betterWeight, isAssisted } from '../lib/exercises.js'
+import { EXIDX, exOr, betterWeight, isAssisted } from '../lib/exercises.js'
 import { usesBar, barWeightFor, plateSplit } from '../lib/bar.js'
 import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, setUnitsTotal, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor } from '../lib/history.js'
 import { fmtNum, capWords, fmtDate, exCount } from '../lib/format.js'
@@ -12,7 +12,7 @@ import { t, exerciseNameFor } from '../lib/i18n.js'
 import { api, appBase } from '../lib/api.js'
 import { insertionIndexAfterCurrentUnit, nextUnfinishedUnit, setProgressHighWater, supersetFlowStep, restAfterSet, restOnRecheck, restSecFor, warmupRestSecFor } from '../lib/supersetFlow.js'
 import Media from '../components/Media.jsx'
-import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWorkout, workoutCompleteSheet, confirmSheet, exerciseNoteSheet, sessionNoteSheet, renameWorkoutSheet, swapActiveWorkoutExercise, barWeightSheet, menuSheet, setMenuSheet, effortPickerSheet, exerciseHistorySheet, addRoutineToSessionSheet } from '../sheets.jsx'
+import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWorkout, workoutCompleteSheet, confirmSheet, exerciseNoteSheet, sessionNoteSheet, renameWorkoutSheet, swapActiveWorkoutExercise, swapActiveWorkoutToBackup, barWeightSheet, menuSheet, setMenuSheet, effortPickerSheet, exerciseHistorySheet, addRoutineToSessionSheet } from '../sheets.jsx'
 import { effortColor } from '../lib/effort.js'
 import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
@@ -71,7 +71,7 @@ function Elapsed({ start }) {
 // drops everything that is not a set you are logging — media, tag chips, the note lines, the
 // "last time" recap and the progression line — leaving the name, the ⋯ menu and the sets.
 // Nothing dropped is lost: it is all still on the ⋯ menu, or one ⋮ switch back to list/cards.
-function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onRemoveSetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onSwap, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
+function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onRemoveSetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onSwap, onSwapBackup, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
   const S = useStore(s => s.S)
   const update = useStore(s => s.update)
   const working = useUI(s => s.work)
@@ -234,6 +234,7 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
       { icon: 'flame', label: t('Add warm-up set'), onClick: onAddWarmup },
       onPairPrev && { icon: 'link', label: t('Make superset with previous'), onClick: onPairPrev },
       onPairNext && { icon: 'link', label: t('Make superset with next'), onClick: onPairNext },
+      ...(onSwapBackup ? (entry.target?.subs || []).map(id => EXIDX[id]).filter(b => b && b.id !== entry.id).map(b => ({ icon: 'shuffle', label: t('Machine taken'), sub: exerciseNameFor(b), onClick: () => onSwapBackup(b.id), disabled: busy })) : []),
       onSwap && { icon: 'shuffle', label: t('Swap exercise'), onClick: onSwap, disabled: busy },
       onMoveUp && { icon: 'chevronUp', label: t('Move up'), onClick: onMoveUp, disabled: busy || !canMoveUp },
       onMoveDown && { icon: 'chevronDown', label: t('Move down'), onClick: onMoveDown, disabled: busy || !canMoveDown },
@@ -387,6 +388,12 @@ function ExerciseBlock({ entryIdx, compact, dense, onToggle, onToggleSide, onFie
         <button className="iconbtn" aria-label={t('More')} title={t('More')} onClick={openMore}><Icon name="more" /></button>
       </div>
     </div>
+    {onSwapBackup && (entry.target?.subs || []).map(id => EXIDX[id]).filter(b => b && b.id !== entry.id).map(b => (
+      <div key={b.id} style={{ marginBottom: 8 }}>
+        <Button size="xs" variant="tinted" icon="shuffle" disabled={busy} aria-label={t('Machine taken')} onClick={() => onSwapBackup(b.id)}>{t('Machine taken')}</Button>
+        <span className="small dim"> {exerciseNameFor(b)}</span>
+      </div>
+    ))}
     {wc.pairButtons && !compact && !dense && (onPairPrev || onPairNext) && <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
       {onPairPrev && <Button size="xs" variant="tinted" icon="link" title={t('Make superset with previous')} onClick={onPairPrev}>{t('Make superset with previous')}</Button>}
       {onPairNext && <Button size="xs" variant="tinted" icon="link" title={t('Make superset with next')} onClick={onPairNext}>{t('Make superset with next')}</Button>}
@@ -711,6 +718,7 @@ function ActiveWorkout() {
   // a superset member acts on that member, not on whatever the marker happens to point at.
   const blockProps = idx => ({
     onSwap: () => swapActiveWorkoutExercise(idx),
+    onSwapBackup: id => swapActiveWorkoutToBackup(idx, id),
     onMoveUp: () => moveUnitAt(idx, -1),
     onMoveDown: () => moveUnitAt(idx, 1),
     canMoveUp: canMoveActiveWorkoutUnit(A, idx, -1),

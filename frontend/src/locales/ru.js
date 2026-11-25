@@ -1769,4 +1769,9 @@ export default {
   'Body weight in volume': 'Вес тела в тоннаже',
   'Pull-ups add your body weight. A belt adds on top. An assistance machine subtracts its help. Records and progression stay as logged.': 'Подтягивания прибавляют вес тела. Пояс сверху. На тренажёре с помощью помощь вычитается. Рекорды и прогрессия не меняются.',
   'Close': 'Закрыть',
+  'Machine taken': 'Тренажёр занят',
+  'Backup exercise': 'Запасное упражнение',
+  'If this one is taken, one tap during the workout swaps to it. The routine stays as it is.': 'Если этот занят, на тренировке одно нажатие подставит запасной. Комплекс остаётся как был.',
+  'Remove backup': 'Убрать запас',
+  'Backup: {0}': 'Запас: {0}',
 }

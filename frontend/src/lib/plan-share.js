@@ -15,6 +15,7 @@ import { uid, todayISO, fmtNum, exCount } from './format.js'
 import { t, exerciseNameFor } from './i18n-core.js'
 import { convertWeight } from './units.js'
 import { MUSCLES, inMuscleOrder } from './muscles.js'
+import { cleanBackups } from './routine-backups.js'
 
 const PLAN_FMT = 1
 const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 0]   // every getDay() index; only the reader's own
@@ -98,6 +99,8 @@ function cleanEx(e) {
   if (e.warmupRestSec > 0) o.warmupRestSec = e.warmupRestSec   // the ramp's own rest travels with the work rest
   if (e.sg) o.sg = e.sg
   if (e.note) o.note = e.note
+  const subs = cleanBackups(e.subs, e.id)
+  if (subs.length) o.subs = subs
   const warm = cleanWarmupSets(e.warmupSets)
   if (warm) {
     o.warmupSets = warm

@@ -44,6 +44,7 @@ import { isWarmupRow, hasCompletedWork } from './lib/workout-model.js'
 import { setTrendOn, setTrendsFor, lastTimeBefore, trendGlyph, trendLabel } from './lib/set-trend.js'
 import { nextUnfinishedUnit } from './lib/supersetFlow.js'
 import { swapActiveExercise } from './lib/active-exercise-swap.js'
+import { backupSlotConfig, withBackups } from './lib/routine-backups.js'
 import { useSheetKeyboard, useRevealActiveChip, tappable } from './lib/use-sheet-keyboard.js'
 import { isFav, toggleFav, sortFavouritesFirst } from './lib/favourites.js'
 import { sameMuscleFirst, swapMuscleOf } from './lib/similar-exercises.js'
@@ -1183,21 +1184,10 @@ function ExercisePicker({ onPick, close, like, title, exclude }) {
 // muscle and the same exercise type.
 export const exercisePicker = (onPick, { title, like, exclude } = {}) => ui().openSheet(close => <ExercisePicker onPick={onPick} close={close} like={like} title={title} exclude={exclude} />)
 
-/** Start a safe swap for one exact active-workout occurrence. */
-export function swapActiveWorkoutExercise(index) {
-  const active = S().active
-  if (!active?.entries?.[index]) return
-
-  // The "+" on a picker row commits with the default config, exactly as it does in the add
-  // flows; tapping the row still opens the config sheet first.
-  const picker = exercisePicker((ex, quick) => quick ? swapTo(ex, defaultConfig(ex.id)) : exConfigSheet(ex, null, cfg => swapTo(ex, cfg), null, null), { title: t('Swap exercise'), like: active.entries[index].id })
-  function swapTo(ex, cfg) {
-    // The picker is a chooser here, not a stack you keep adding from: one swap, then back to
-    // the workout. (The add flow deliberately leaves it open.)
-    picker.close()
-    const full = { ...cfg, id: ex.id }
-    const st = S()
-    const current = st.active?.entries?.[index]
+function commitActiveSwap(index, ex, cfg) {
+  const full = { ...cfg, id: ex.id }
+  const st = S()
+  const current = st.active?.entries?.[index]
     if (!current) return
     // A swap is an in-place substitution — routine identity is unchanged, so the replacement
     // keeps the slot's own `rid` and reads its prescription from that routine (not a
@@ -1250,7 +1240,33 @@ export function swapActiveWorkoutExercise(index) {
       confirmText: t('Continue'),
       onConfirm: () => apply({ loggedConfirmed: true })
     })
+}
+
+/** Start a safe swap for one exact active-workout occurrence. */
+export function swapActiveWorkoutExercise(index) {
+  const active = S().active
+  if (!active?.entries?.[index]) return
+
+  // The "+" on a picker row commits with the default config, exactly as it does in the add
+  // flows; tapping the row still opens the config sheet first.
+  const picker = exercisePicker((ex, quick) => quick ? swapTo(ex, defaultConfig(ex.id)) : exConfigSheet(ex, null, cfg => swapTo(ex, cfg), null, null), { title: t('Swap exercise'), like: active.entries[index].id })
+  function swapTo(ex, cfg) {
+    // The picker is a chooser here, not a stack you keep adding from: one swap, then back to
+    // the workout. (The add flow deliberately leaves it open.)
+    picker.close()
+    commitActiveSwap(index, ex, cfg)
   }
+}
+
+/** One tap: the slot's planned backup takes over. The routine is left as it was. */
+export function swapActiveWorkoutToBackup(index, backupId) {
+  const st = S()
+  const current = st.active?.entries?.[index]
+  const ex = EXIDX[backupId]
+  if (!current || !ex || backupId === current.id) return
+  const cfg = backupSlotConfig({ ...(current.target || {}), id: current.id }, backupId, st)
+  if (!cfg) return
+  commitActiveSwap(index, ex, cfg)
 }
 
 /* ============================ equipment profiles ============================ */
@@ -1443,8 +1459,9 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
     // was. Mode-independent — a heavy triple, a plank and a cardio interval all rest.
     const restSec = Math.max(0, Math.round(c.restSec) || 0)
     const withRest = restSec ? { restSec } : {}
-    if (cardio) onSave({ sets, min: Math.max(1, Math.round(c.min) || 20), speed: Math.max(0, c.speed || 8), ...withNote, ...withRest })
-    else if (mode === 'time') onSave({ sets, mode: 'time', sec: Math.max(1, Math.round(c.sec) || 45), weight: Math.max(0, c.weight || 0), ...flags, ...prog, ...withNote, ...withWarmups, ...withRest })
+    const emit = out => onSave({ ...out, ...withBackups(c.subs, ex.id, id => !!EXIDX[id]) })
+    if (cardio) emit({ sets, min: Math.max(1, Math.round(c.min) || 20), speed: Math.max(0, c.speed || 8), ...withNote, ...withRest })
+    else if (mode === 'time') emit({ sets, mode: 'time', sec: Math.max(1, Math.round(c.sec) || 45), weight: Math.max(0, c.weight || 0), ...flags, ...prog, ...withNote, ...withWarmups, ...withRest })
     else {
       // A unilateral target is stored even: the split has to divide, and a typed 15 would
       // otherwise plan seven reps on one side and eight on the other, every session.
@@ -1463,8 +1480,16 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
       // Every set in this exercise becomes a drop-set/rest-pause (buildSets stamps the rows) —
       // decided here, in the plan, not re-decided live each time you train it.
       if (c.intensifier && c.intensifier.type) out.intensifier = c.intensifier
-      onSave(out)
+      emit(out)
     }
+  }
+  const backupId = (Array.isArray(c.subs) ? c.subs : []).find(id => id !== ex.id && EXIDX[id])
+  const backupEx = backupId ? EXIDX[backupId] : null
+  const pickBackup = () => {
+    const pick = exercisePicker(chosen => {
+      pick.close()
+      setC(x => ({ ...x, subs: [chosen.id] }))
+    }, { title: t('Backup exercise'), like: ex.id, exclude: ex.id })
   }
   return <>
     <h3 className="capitalize">{exerciseNameFor(ex)}</h3>
@@ -1547,6 +1572,12 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
     </div>
     <div className="small dim" style={{ marginBottom: 18 }}>
       {t('Rest after each set of this exercise. Leave at 0 to use your default rest timer.')}
+    </div>
+    <div className="sect-b" style={{ marginBottom: 8 }}>
+      <Row icon="shuffle" iconTint="var(--teal)" title={t('Backup exercise')}
+        subtitle={backupEx ? exerciseNameFor(backupEx) : t('If this one is taken, one tap during the workout swaps to it. The routine stays as it is.')}
+        accessory="chevron" onClick={pickBackup} />
+      {backupEx && <Row icon="xmark" title={t('Remove backup')} onClick={() => setC(x => { const next = { ...x }; delete next.subs; return next })} />}
     </div>
     {/* ---------- bodyweight + per side (issues #31/#32/#33) ---------- */}
     {!cardio && <div className="sect-b" style={{ marginBottom: 8 }}>

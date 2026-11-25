@@ -2,7 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { exOr } from '../lib/exercises.js'
+import { EXIDX, exOr } from '../lib/exercises.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { uid } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
@@ -485,7 +485,8 @@ export default function RoutineEdit() {
           }}>
           <Thumb ex={ex} />
           <div className="grow"><div className="tt capitalize">{exerciseNameFor(ex)}</div><div className="ss">{exLine(e, S.unit)}</div>
-            {e.note && <div className="small dim" style={{ marginTop: 2 }}>{e.note}</div>}</div>
+            {e.note && <div className="small dim" style={{ marginTop: 2 }}>{e.note}</div>}
+            {Array.isArray(e.subs) && EXIDX[e.subs[0]] && e.subs[0] !== e.id && <div className="small dim" style={{ marginTop: 2 }}>{t('Backup: {0}', exerciseNameFor(EXIDX[e.subs[0]]))}</div>}</div>
           {noEquip && <span className="tag" style={{ color: 'var(--orange)', borderColor: 'var(--orange)' }} title={t('Needs {0} — not in your active profile', t(ex.eq))}><Icon name="warning" /></span>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 'none', alignItems: 'center' }}>
             {i > 0 && <button className={'iconbtn' + (linkedPrev ? ' on-ss' : '')} title={t('Superset with exercise above')} style={{ width: 32, height: 28, borderRadius: 8, fontSize: 15 }} onClick={ev => { ev.stopPropagation(); toggleLink(i) }}><Icon name="link" /></button>}

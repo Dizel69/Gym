@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
     scrollCalls: [],
     headerHeight: 0,
     swapActiveWorkoutExercise: vi.fn(),
+    swapActiveWorkoutToBackup: vi.fn(),
     menuSheet: vi.fn(),
     setMenuSheet: vi.fn(),
     effortPickerSheet: vi.fn(),
@@ -73,6 +74,7 @@ vi.mock('../sheets.jsx', () => ({
   workoutCompleteSheet: mocks.workoutCompleteSheet,
   confirmSheet: mocks.confirmSheet,
   swapActiveWorkoutExercise: mocks.swapActiveWorkoutExercise,
+  swapActiveWorkoutToBackup: mocks.swapActiveWorkoutToBackup,
   menuSheet: mocks.menuSheet,
   setMenuSheet: mocks.setMenuSheet,
   barWeightSheet: vi.fn(),
@@ -1316,12 +1318,22 @@ describe('workout controls: the more menu and the set menu', () => {
 
     item('Swap exercise').onClick()
     expect(mocks.swapActiveWorkoutExercise).toHaveBeenCalledWith(0)
+    expect(item('Machine taken')).toBeUndefined()
 
     await act(async () => { item('Add warm-up set').onClick() })
     expect(mocks.S.active.entries[0].sets.some(s => s.phase === 'warmup' || s.warmup)).toBe(true)
 
     await act(async () => { item('Remove exercise').onClick() })
     expect(mocks.confirmSheet).toHaveBeenCalled()
+  })
+
+  it('offers Machine taken when the slot has a planned backup', async () => {
+    await mount([exercise('0025', [false], { target: { mode: 'reps', reps: 8, weight: 80, subs: ['0043'] } })])
+    const btn = container.querySelector('button[aria-label="Machine taken"]')
+    expect(btn).toBeTruthy()
+    expect(btn.textContent).toContain('Machine taken')
+    await act(async () => { btn.dispatchEvent(new dom.Event('click', { bubbles: true })) })
+    expect(mocks.swapActiveWorkoutToBackup).toHaveBeenCalledWith(0, '0043')
   })
 
   it('opens the exercise history sheet from the More menu, for the tapped exercise', async () => {
