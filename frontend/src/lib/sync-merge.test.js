@@ -212,6 +212,14 @@ describe('mergeStates', () => {
     expect(m.restSec).toBe(75)
     expect(m._ts).toBe(1002)
   })
+
+  it('keeps a check-in that only the older copy has, and the later answer of a shared day', () => {
+    const newer = base({ _ts: 200, dayForm: { '2026-11-02': { sleep: 4, _ts: 10 }, '2026-11-01': { sleep: 2, _ts: 40 } } })
+    const older = base({ _ts: 100, dayForm: { '2026-11-01': { sleep: 5, _ts: 50 } } })
+    const m = mergeStates(newer, older)
+    expect(m.dayForm['2026-11-02'].sleep).toBe(4)
+    expect(m.dayForm['2026-11-01'].sleep).toBe(5)
+  })
 })
 
 describe('sign-in adoption helpers', () => {

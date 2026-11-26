@@ -50,6 +50,8 @@ import { isFav, toggleFav, sortFavouritesFirst } from './lib/favourites.js'
 import { sameMuscleFirst, swapMuscleOf } from './lib/similar-exercises.js'
 import { swapSuggestions } from './lib/exercise-substitutes.js'
 import { buildSessionEntries } from './lib/session-start.js'
+import { canGoLighter, checkinMode, goLighter, LIGHTER_KINDS, readForm, withForm } from './lib/daily-form.js'
+import DailyCheckin from './components/DailyCheckin.jsx'
 import { buildCombinedEntries, deriveSessionName } from './lib/session-merge.js'
 import { workoutsOn, backfillStart, backfillEnd, completeBackfill } from './lib/backfill.js'
 import { repeatSessionEntries } from './lib/session-repeat.js'
@@ -2290,13 +2292,28 @@ function PickComplex({ iso, close }) {
 }
 export const pickDayComplex = iso => ui().openSheet(close => <PickComplex iso={iso} close={close} />)
 
-export function startFlow(routineIds) {
+export function startFlow(routineIds, opts = {}) {
+  // The four taps come first, and only when the switch is on. Once a day.
+  if (!opts.checked && checkinMode(S(), todayISO())) { dailyCheckinSheet(routineIds, opts); return }
   // The weigh-in is a setting (Settings → During a workout, issue #137): off goes straight
   // into the session with no body weight on it, same as "Start without weighing in".
-  if (S().weighIn === false) { beginWorkout(routineIds, null); return }
-  bwSheet({ required: true, onDone: bw => beginWorkout(routineIds, bw) })
+  if (S().weighIn === false) { beginWorkout(routineIds, null, opts); return }
+  bwSheet({ required: true, onDone: bw => beginWorkout(routineIds, bw, opts) })
 }
-export function beginWorkout(routineIds, bw) {
+function dailyCheckinSheet(routineIds, opts) {
+  const today = todayISO()
+  const preview = { entries: buildCombinedEntries(S(), routineIds).entries }
+  const lighter = LIGHTER_KINDS.filter(k => canGoLighter(preview, k))
+  const go = more => startFlow(routineIds, { ...opts, checked: true, ...more })
+  ui().openSheet(close => <DailyCheckin lighter={lighter}
+    onDone={({ form, lighter: kind }) => {
+      close()
+      if (readForm(form)) update(s => { s.dayForm = withForm(s.dayForm, today, { ...form, lighter: kind }) })
+      go(kind ? { lighter: kind } : {})
+    }}
+    onSkip={() => { close(); go({}) }} />)
+}
+export function beginWorkout(routineIds, bw, { lighter = null } = {}) {
   const st = S()
   const { entries, routineIds: rids, routines } = buildCombinedEntries(st, routineIds)
   update(s => {
@@ -2312,6 +2329,13 @@ export function beginWorkout(routineIds, bw) {
       workoutView: st.workoutView || 'cards',
     }
   })
+  if (lighter) {
+    let n = 0
+    update(s => { n = goLighter(s, lighter) })
+    if (n) toast(lighter === 'load'
+      ? t('Lighter day: 10% off the weights. Progression sits this one out.')
+      : t('Lighter day: one set fewer per exercise. Progression sits this one out.'))
+  }
   useUI.getState().stopRest()
   nav('/workout')
 }

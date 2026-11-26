@@ -23,8 +23,8 @@
 // THE AUTOMATIC TRIGGER reads two signals over the last two weeks:
 //   performance  the best estimated 1RM per exercise, this fortnight against the one before;
 //                "falling" when most of the exercises logged in both went down
-//   daily form   check-ins of how you feel, through the hook below (dailyFormScores). Another
-//                part of the app records them; this file only reads what the hook hands back.
+//   daily form   check-ins of how you feel (lib/daily-form.js), through the hook below. This
+//                file only reads what the hook hands back.
 // With form data: a low fortnight plus numbers that did not climb suggests a deload. Without it,
 // falling numbers alone do. Never more often than once in MIN_GAP weeks, and only as a question.
 import { weekKey, weekStartOf, todayISO } from './format.js'

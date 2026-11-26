@@ -301,6 +301,10 @@ export default function Settings() {
     <Section title={t('During a workout')} footer={wakeOK ? t('The screen stays on while a workout is running, so you don’t have to unlock your phone between sets.') : null}>
       {/* The quick weigh-in that opens on Start (sheets.jsx startFlow, issue #137); off skips straight
           to the session. Home and Stats still log weight by hand. */}
+      <Row icon="heart" iconTint="var(--pink)" title={t('Daily check-in')}
+        subtitle={t('Before a workout: sleep, energy, soreness and stress. Weights stay put unless you choose a lighter day.')}>
+        <Switch checked={S.dailyForm === true} onChange={v => update(s => { s.dailyForm = v })} />
+      </Row>
       <Row icon="scale" iconTint="var(--green)" title={t('Weigh in before workouts')}
         subtitle={t('Asks for your body weight when a workout starts. Off starts the session straight away.')}>
         <Switch checked={S.weighIn !== false} onChange={v => update(s => { s.weighIn = v })} />
@@ -330,7 +334,7 @@ export default function Settings() {
         value={deloadCycleOf(S).every} onChange={v => update(s => setDeloadEvery(s, Number(v)))}
         options={[{ value: 0, label: t('Off') }, ...EVERY_CHOICES.filter(n => n).map(n => ({ value: n, label: t('Every {0} weeks', n) }))]} />
       <Row icon="chartLine" iconTint="var(--blue)" title={t('Suggest a deload')}
-        subtitle={t('When the same lifts come up short two weeks running.')}>
+        subtitle={t('When your numbers dip two weeks running, and your check-ins say tired if you log them.')}>
         <Switch checked={deloadCycleOf(S).auto} onChange={v => update(s => setDeloadAuto(s, v))} />
       </Row>
       <SelectRow icon="timer" iconTint="var(--orange)" title={t('Forgotten workout')}

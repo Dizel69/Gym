@@ -253,7 +253,10 @@ function DeloadCard({ S, update }) {
   const wk = today ? weekKey(todayISO(), weekStartOf(S)) : (idea?.week || next)
   return <div className="card" style={{ marginBottom: 12 }}>
     <div style={{ fontWeight: 600 }}>{today ? t('Deload week') : idea ? t('A deload week?') : t('Deload week coming')}</div>
-    <p className="muted small">{today ? t('Fewer sets, the same weights. This week does not move your plan.') : t('The numbers have been short two weeks running.')}</p>
+    <p className="muted small">{today ? t('Fewer sets, the same weights. This week does not move your plan.')
+      : idea?.reason === 'both' ? t('Your numbers dipped for two weeks and your check-ins say tired.')
+      : idea?.reason === 'form' ? t('Your check-ins say tired, and the numbers are not climbing.')
+      : t('The numbers have been short two weeks running.')}</p>
     <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
       {idea && <Button onClick={() => update(s => addDeload(s, idea.week))}>{t('Make it a deload')}</Button>}
       {wk && <Button variant="ghost" onClick={() => update(s => pushBack(s, wk))}>{t('Push it back a week')}</Button>}

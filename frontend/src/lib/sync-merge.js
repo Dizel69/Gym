@@ -144,6 +144,22 @@ function mergeExWeights(n = {}, o = {}) {
   return out
 }
 
+// One answer per day. A day written on both sides keeps the later stamp, and a day that
+// only one side has is kept. The check-in is not a setting, so the newer document must
+// not drop the other device's mornings.
+function mergeDayForm(newer, older) {
+  const map = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
+  const a = map(newer)
+  const b = map(older)
+  if (!a && !b) return null
+  const out = { ...(b || {}) }
+  for (const [k, v] of Object.entries(a || {})) {
+    const prev = out[k]
+    if (!prev || (Number(v?._ts) || 0) >= (Number(prev._ts) || 0)) out[k] = v
+  }
+  return out
+}
+
 // `prefer` names the side whose settings, plan and per-exercise config win regardless of `_ts`:
 // on sign-in the server's profile is the truth and the device only contributes the entries it
 // logged while signed out. Without it the newer copy decides, as for a conflict between devices.
@@ -181,6 +197,7 @@ export function mergeStates(a, b, { prefer } = {}) {
   }
   if (list(n.favEx).length || list(o.favEx).length) out.favEx = [...new Set([...list(n.favEx), ...list(o.favEx)])]
   out.exWeights = clone(mergeExWeights(n.exWeights, o.exWeights))
+  if (n.dayForm || o.dayForm) out.dayForm = clone(mergeDayForm(n.dayForm, o.dayForm))
   for (const f of ['exNotes', 'barWeights']) {
     if (n[f] || o[f]) out[f] = clone({ ...(o[f] || {}), ...(n[f] || {}) })
   }
