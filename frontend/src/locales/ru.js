@@ -1774,4 +1774,8 @@ export default {
   'If this one is taken, one tap during the workout swaps to it. The routine stays as it is.': 'Если этот занят, на тренировке одно нажатие подставит запасной. Комплекс остаётся как был.',
   'Remove backup': 'Убрать запас',
   'Backup: {0}': 'Запас: {0}',
+  'Warm-ups in volume': 'Разминка в тоннаже',
+  'Done warm-ups add to the tonnage. Records and progression stay on the work sets.': 'Сделанная разминка входит в тоннаж. Рекорды и прогрессия остаются от рабочих подходов.',
+  'Added before your work sets and left out of records and progression. Volume counts them only when Warm-ups in volume is on. Set their weight and reps below.': 'Добавляются перед рабочими подходами и не входят в рекорды и прогрессию. В тоннаж — только если в настройках включена разминка. Вес и повторы задаются ниже.',
+  'Added before your work sets and left out of records and progression. Volume counts them only when Warm-ups in volume is on. Each one closes half the gap to the work weight — you can still change any of them mid-session.': 'Добавляются перед рабочими подходами и не входят в рекорды и прогрессию. В тоннаж — только если в настройках включена разминка. Каждый вдвое сокращает разрыв до рабочего веса — во время тренировки их всё равно можно изменить.',
 }

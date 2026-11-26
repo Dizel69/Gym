@@ -258,6 +258,10 @@ export default function Settings() {
         subtitle={t('Pull-ups add your body weight. A belt adds on top. An assistance machine subtracts its help. Records and progression stay as logged.')}>
         <Switch checked={S.volumeBodyweight !== false} onChange={v => update(s => { s.volumeBodyweight = v })} />
       </Row>
+      <Row icon="flame" iconTint="var(--orange)" title={t('Warm-ups in volume')}
+        subtitle={t('Done warm-ups add to the tonnage. Records and progression stay on the work sets.')}>
+        <Switch checked={S.volumeWarmups === true} onChange={v => update(s => { s.volumeWarmups = v })} />
+      </Row>
       <Row icon="scale" iconTint="var(--teal)" title={t('Weight unit')}>
         <Segmented className="seg-inline"
           options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]}

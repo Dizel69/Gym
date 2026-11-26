@@ -596,11 +596,9 @@ export function workoutVolume(w, opts) {
   let v = 0
   // Count each completed limb at its own load, including drops. A rest-pause side's r already
   // includes its bursts. Unchecked limbs and warm-ups contribute no volume.
-  // Warm-ups are excluded here as everywhere else. The config sheet promises it in so many
-  // words ("left out of volume, records and progression") and every other consumer already
-  // does it; this line was the one that did not, which only stopped being harmless when a
-  // routine started planning warm-ups by default. The number is written into the saved
-  // workout, so an inflated one would stay wrong forever.
+  // Warm-ups stay out unless the screen asked for them (`opts.warmups`). The saved `vol`
+  // is written without that option, so it stays the work sets, and turning the switch off
+  // puts the old number back. Records and progression never pass it.
   // A per-side row's mirror is `w = max(L, R), r = L + R` (workout-model syncSideAggregate) —
   // right for a headline, wrong for a product: 14×10 left and 12.5×6 right is 215, not 14×16.
   // Each side is its own weight × reps, with its own drops and bursts.
@@ -608,11 +606,12 @@ export function workoutVolume(w, opts) {
   // sits on top. An assistance machine comes off. A barbell set is unchanged, and so is a call
   // that does not pass a body weight: the saved `vol` stays the logged load.
   const bodyweight = Number(opts?.bodyweight) || 0
+  const warmups = opts?.warmups === true
   w.entries.forEach(e => {
     const spec = bodyweight > 0 ? bodyLoadOf(e) : null
     const own = spec ? bodyweight * spec.share : 0
     e.sets.forEach(s => {
-      if (isWarmupRow(s)) return
+      if (!warmups && isWarmupRow(s)) return
       if (spec && own > 0 && modeForSet(s, e.target) === 'reps') {
         v += spec.assisted
           ? completedVolumeOf(withLoad(s, x => Math.max(0, own - x)))
@@ -622,12 +621,15 @@ export function workoutVolume(w, opts) {
   })
   return v
 }
-// What a screen shows. The saved `vol` is still the logged load, so turning this off puts the
-// old number back without rewriting the log. A workout with no sets left falls back to that save.
+/** Settings → General. Off until turned on. Records and progression never read it. */
+export const countsWarmups = S => S?.volumeWarmups === true
+// What a screen shows. The saved `vol` is still the logged load without warm-ups or body
+// weight, so turning either switch off puts the old number back without rewriting the log.
+// A workout with no sets left falls back to that save.
 export function sessionVolume(w, S) {
   if (Array.isArray(w?.entries)) {
     const bodyweight = countsBodyweight(S) ? bodyweightFor(w, S) : 0
-    return Math.max(0, Number(workoutVolume(w, { bodyweight })) || 0)
+    return Math.max(0, Number(workoutVolume(w, { bodyweight, warmups: countsWarmups(S) })) || 0)
   }
   const saved = Number(w?.vol)
   return Number.isFinite(saved) ? Math.max(0, saved) : 0

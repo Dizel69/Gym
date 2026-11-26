@@ -3,7 +3,7 @@
 // Nothing here is stored or sent. Home shows the year stories only from
 // 14 December through 31 December. Stats shows one month at a time.
 import { isoOf, weekKey, weekStartOf } from './format.js'
-import { lastBW, sessionVolume, workoutVolume, bodyweightFor, countsBodyweight } from './history.js'
+import { lastBW, sessionVolume, workoutVolume, bodyweightFor, countsBodyweight, countsWarmups } from './history.js'
 import { isWarmupRow } from './workout-model.js'
 import { estimate1RM } from './onerm.js'
 
@@ -227,7 +227,7 @@ function collect(workouts, S) {
       const cur = perEx.get(entry.id) || { sets: 0, vol: 0, name: null, best: null }
       cur.sets += rows.length
       const kg = countsBodyweight(S) ? bodyweightFor(w, S) : 0
-      cur.vol += workoutVolume({ entries: [entry] }, { bodyweight: kg })
+      cur.vol += workoutVolume({ entries: [entry] }, { bodyweight: kg, warmups: countsWarmups(S) })
       cur.name = cur.name || entry.n || entry.muscleSnapshot?.n || null
       for (const s of rows) {
         const w = Number(s.w)

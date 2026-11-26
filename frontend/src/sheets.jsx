@@ -5,7 +5,7 @@ import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, categor
 import { mergeExercise, undoMerge, mergePreview, mergeBlocked } from './lib/exercise-merge.js'
 import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile } from './lib/equipment.js'
 import { fmtDate, fmtNum, capWords, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, routineCount, DAYN, DAYS, weekOrder, weekStartOf, weekDayOffset, MONTHS_LONG, ACCENTS } from './lib/format.js'
-import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineIds, workoutVolume, sessionVolume, bodyweightFor, countsBodyweight, setsDone, setsDoneActive, setUnitsTotal, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
+import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineIds, workoutVolume, sessionVolume, bodyweightFor, countsBodyweight, countsWarmups, setsDone, setsDoneActive, setUnitsTotal, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
 import { usesBar, barWeightFor, defaultBarWeight, hasBarOverride, isNoBar } from './lib/bar.js'
 import { toScale, rirOf, EFFORT_PRESETS, effortColor } from './lib/effort.js'
 import { beep, vibrate } from './lib/sound.js'
@@ -1555,8 +1555,8 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
       <div className="small dim" style={{ marginBottom: 18 }}>
         {(c.warmupSets || 0) > 0
           ? (mode === 'reps'
-            ? t('Added before your work sets and left out of volume, records and progression. Set their weight and reps below.')
-            : t('Added before your work sets and left out of volume, records and progression. Each one closes half the gap to the work weight — you can still change any of them mid-session.'))
+            ? t('Added before your work sets and left out of records and progression. Volume counts them only when Warm-ups in volume is on. Set their weight and reps below.')
+            : t('Added before your work sets and left out of records and progression. Volume counts them only when Warm-ups in volume is on. Each one closes half the gap to the work weight — you can still change any of them mid-session.'))
           : t('Ramp-up sets added before the work sets, so you do not have to add them by hand each session.')}
       </div>
     </>}
@@ -2180,7 +2180,7 @@ function WorkoutDetail({ w, close }) {
       const r = g.rid ? st.routines.find(x => x.id === g.rid) : null
       const setN = g.items.reduce((n, [e]) => n + e.sets.filter(s => s.done && !isWarmupRow(s)).length, 0)
       const kg = countsBodyweight(st) ? bodyweightFor(live, st) : 0
-      const vol = workoutVolume({ entries: g.items.map(([e]) => e) }, { bodyweight: kg })
+      const vol = workoutVolume({ entries: g.items.map(([e]) => e) }, { bodyweight: kg, warmups: countsWarmups(st) })
       return <div key={g.key}>
         <div className="row between" style={{ margin: '2px 0 8px', paddingBottom: 6, borderBottom: '1px solid var(--sep)' }}>
           <div className="row" style={{ gap: 7, fontWeight: 600 }}>
